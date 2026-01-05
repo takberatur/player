@@ -1,0 +1,8 @@
+export { default as ClientHeader } from './ClientHeader.vue'
+export { default as ClientHero } from './ClientHero.vue'
+export { default as ClientFeature } from './ClientFeature.vue'
+export { default as ClientBenefits } from './ClientBenefits.vue'
+export { default as ClientCTA } from './ClientCTA.vue'
+export { default as ClientExamplePlayer } from './ClientExamplePlayer.vue'
+export { default as ClientDialogPlayer } from './ClientDialogPlayer.vue'
+export { default as ClientFooter } from './ClientFooter.vue'
