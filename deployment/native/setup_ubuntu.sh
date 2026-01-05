@@ -29,7 +29,7 @@ echo "--- 2. INSTALL DEPENDENCIES (PHP, Node, System) ---"
 apt-get install -y git curl zip unzip software-properties-common supervisor nginx
 add-apt-repository ppa:ondrej/php -y
 apt-get update
-apt-get install -y php8.3 php8.3-fpm php8.3-cli php8.3-common php8.3-mysql php8.3-zip php8.3-gd php8.3-mbstring php8.3-curl php8.3-xml php8.3-bcmath
+apt-get install -y php8.4 php8.4-fpm php8.4-cli php8.4-common php8.4-mysql php8.4-zip php8.4-gd php8.4-mbstring php8.4-curl php8.4-xml php8.4-bcmath
 
 # Install Composer
 if ! command -v composer &> /dev/null; then
@@ -67,7 +67,7 @@ rm google-chrome-stable_current_amd64.deb
 
 # Configure PHP Limits
 echo "Configuring PHP limits..."
-PHP_INI="/etc/php/8.3/fpm/php.ini"
+PHP_INI="/etc/php/8.4/fpm/php.ini"
 if [ -f "$PHP_INI" ]; then
     sed -i 's/^post_max_size.*/post_max_size = 500M/' "$PHP_INI"
     sed -i 's/^upload_max_filesize.*/upload_max_filesize = 500M/' "$PHP_INI"
@@ -75,7 +75,7 @@ if [ -f "$PHP_INI" ]; then
     echo "PHP limits updated in $PHP_INI"
 
     # Restart PHP-FPM to apply changes
-    systemctl restart php8.3-fpm
+    systemctl restart php8.4-fpm
 else
     echo "Warning: $PHP_INI not found. Please update PHP limits manually."
 fi
@@ -109,7 +109,7 @@ server {
     error_page 404 /index.php;
 
     location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_pass unix:/var/run/php/php8.4-fpm.sock;
         fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
         include fastcgi_params;
     }

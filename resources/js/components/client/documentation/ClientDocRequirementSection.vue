@@ -27,11 +27,11 @@
     <ul>
       <li>Nginx (web server)</li>
       <li>
-        PHP 8.3 (FPM, CLI) and extensions:
+        PHP 8.4 (FPM, CLI) and extensions:
         <ul>
-          <li>php8.3-fpm, php8.3-cli, php8.3-common</li>
-          <li>php8.3-mysql, php8.3-zip, php8.3-gd, php8.3-mbstring</li>
-          <li>php8.3-curl, php8.3-xml, php8.3-bcmath</li>
+          <li>php8.4-fpm, php8.4-cli, php8.4-common</li>
+          <li>php8.4-mysql, php8.4-zip, php8.4-gd, php8.4-mbstring</li>
+          <li>php8.4-curl, php8.4-xml, php8.4-bcmath</li>
         </ul>
       </li>
       <li>Composer (PHP dependency manager)</li>
@@ -86,7 +86,7 @@
     <p>Defined in <code>deployment/docker/docker-compose.yml</code>:</p>
     <ul>
       <li>
-        <strong>app</strong>: PHP 8.3 FPM container, working dir
+        <strong>app</strong>: PHP 8.4 FPM container, working dir
         <code>/var/www/html</code>
       </li>
       <li>

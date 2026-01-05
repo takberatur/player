@@ -86,7 +86,7 @@ cd player</code></pre>
         <code>player.yourdomain.com</code>) when prompted.
       </li>
       <li>
-        The script will automatically install PHP 8.3, Nginx, Node.js 20,
+        The script will automatically install PHP 8.4, Nginx, Node.js 20,
         Python, and other dependencies.
       </li>
       <li>
@@ -182,7 +182,7 @@ editor123
       <li>
         <strong>Restart Services:</strong>
         <pre><code class="language-bash">sudo systemctl restart nginx
-sudo systemctl restart php8.3-fpm</code></pre>
+sudo systemctl restart php8.4-fpm</code></pre>
       </li>
     </ul>
   </div>

@@ -1,4 +1,4 @@
-FROM php:8.3-fpm
+FROM php:8.4-fpm
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -99,14 +99,8 @@ RUN php artisan config:cache
 # Update npm to latest version
 RUN npm install -g npm@latest
 
-# Build temporary client to ensure everything is set up correctly
-RUN npm install && npm run build
-
-# The Manually generate wayfinder routes
-RUN php artisan wayfinder:generate --with-form --ansi
-
 # Then build frontend with SSR
-RUN npm run build:ssr
+RUN npm install && npm run build:ssr
 
 # Set permission for storage and bootstrap cache
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
