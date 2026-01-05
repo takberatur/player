@@ -49,15 +49,24 @@ const getEmbedId = async (videoUrl) => {
           '--disable-dev-shm-usage',
           '--disable-accelerated-2d-canvas',
           '--disable-gpu',
+          '--ignore-certificate-errors',
+          '--disable-extensions',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
           '--window-size=1920,1080',
+          `--user-data-dir=/tmp/puppeteer_user_data_${Date.now()}`,
         ],
+        dumpio: true,
       });
     } catch (launchError) {
-      console.error(JSON.stringify({
-        error: 'Puppeteer launch failed',
-        details: launchError.message,
-        path: process.env.PUPPETEER_EXECUTABLE_PATH
-      }));
+      console.error(
+        JSON.stringify({
+          error: 'Puppeteer launch failed',
+          details: launchError.message,
+          path: process.env.PUPPETEER_EXECUTABLE_PATH,
+        }),
+      );
       exit(1);
     }
 
@@ -162,7 +171,7 @@ const getEmbedId = async (videoUrl) => {
 
       uniqueSources.sort((a, b) => (b.height || 0) - (a.height || 0));
       if (uniqueSources.length > 0) {
-          uniqueSources[0].default = true;
+        uniqueSources[0].default = true;
       }
 
       console.log(JSON.stringify(uniqueSources));
@@ -175,7 +184,9 @@ const getEmbedId = async (videoUrl) => {
     }
   } catch (e) {
     if (browser) {
-        try { await browser.close(); } catch(err) {}
+      try {
+        await browser.close();
+      } catch (err) {}
     }
     console.error(
       JSON.stringify({ error: 'Script failed', details: e.message }),

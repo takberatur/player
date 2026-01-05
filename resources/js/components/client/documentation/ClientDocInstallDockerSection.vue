@@ -227,6 +227,10 @@ editor123
         <pre><code class="language-bash">docker compose -f deployment/docker/docker-compose.yml down -v</code></pre>
       </li>
       <li>
+        <strong>Reset Application Container:</strong>
+        <pre><code class="language-bash">docker compose --env-file .env -f deployment/docker/docker-compose.yml restart app</code></pre>
+      </li>
+      <li>
         <strong>Get Application Logs:</strong>
         <pre><code class="language-bash">docker compose --env-file .env -f deployment/docker/docker-compose.yml exec app cat storage/logs/laravel.log</code></pre>
       </li>

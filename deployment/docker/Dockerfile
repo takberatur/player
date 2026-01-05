@@ -24,6 +24,14 @@ RUN apt-get update && apt-get install -y \
     fonts-liberation \
     libappindicator3-1 \
     xdg-utils \
+    libxcomposite1 \
+    libxcursor1 \
+    libxdamage1 \
+    libxi6 \
+    libxtst6 \
+    libxrandr2 \
+    libdbus-1-3 \
+    libx11-xcb1 \
     python3 \
     python3-pip \
     ffmpeg \
@@ -59,6 +67,8 @@ COPY . /var/www/html
 
 # Install Dependencies
 # RUN composer install --optimize-autoloader --no-dev
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 RUN npm install && npm run build:ssr
 
 # Set permission for storage and bootstrap cache
