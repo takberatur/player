@@ -176,7 +176,10 @@ docker compose --env-file .env -f deployment/docker/docker-compose.yml exec app 
 # Run Seeder
 docker compose --env-file .env -f deployment/docker/docker-compose.yml exec app php artisan db:seed
 
-# Link Storage
+# Unlink existing Storage
+docker compose --env-file .env -f deployment/docker/docker-compose.yml exec app rm -rf public/storage
+
+# Create New Storage Link
 docker compose --env-file .env -f deployment/docker/docker-compose.yml exec app php artisan storage:link</code></pre>
 
     <h3>3. Set Permissions</h3>

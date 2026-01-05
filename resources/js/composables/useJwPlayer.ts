@@ -62,8 +62,6 @@ export const useJwPlayer = () => {
 
   const convert = async (link: string): Promise<JWResult> => {
     if (/rumble\.com/i.test(link)) {
-      if (!import.meta.env.VITE_RUMBLE_USE_PUPPETEER) import.meta.env.VITE_RUMBLE_USE_PUPPETEER = '1';
-      if (!import.meta.env.VITE_RUMBLE_HEADFUL) import.meta.env.VITE_RUMBLE_HEADFUL = '1';
       const res = await getRumbleVideoSources(link);
       if (!res.success || !res.sources || res.sources.length === 0) {
         return { success: false, error: res.error || 'No sources available' };
