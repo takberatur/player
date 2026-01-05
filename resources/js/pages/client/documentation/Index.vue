@@ -4,6 +4,7 @@ import {
   ClientDocInstallDockerSection,
   ClientDocInstallNginxManualSection,
   ClientDocIntroductionSection,
+  ClientDocNginxReverseProxySection,
   ClientDocRequirementSection,
   ClientDocumentationHeader,
   ClientDocumentationSidebar,
@@ -126,6 +127,11 @@ const menuItems = [
         title: 'Ubuntu + Docker',
         icon: Layers,
       },
+      {
+        id: 'installation-nginx-proxy',
+        title: 'Nginx Reverse Proxy',
+        icon: Layers,
+      },
     ],
   },
   {
@@ -179,6 +185,9 @@ const selectMenuItem = (itemId: string) => {
           />
           <ClientDocInstallDockerSection
             v-else-if="activeSection === 'installation-docker'"
+          />
+          <ClientDocNginxReverseProxySection
+            v-else-if="activeSection === 'installation-nginx-proxy'"
           />
           <ClientDocChangeLogSection
             v-else-if="activeSection === 'change-log'"

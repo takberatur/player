@@ -173,6 +173,9 @@ docker compose --env-file .env -f deployment/docker/docker-compose.yml exec app 
 # Run Database Migrations
 docker compose --env-file .env -f deployment/docker/docker-compose.yml exec app php artisan migrate --force
 
+# Run Seeder
+docker compose --env-file .env -f deployment/docker/docker-compose.yml exec app php artisan db:seed
+
 # Link Storage
 docker compose --env-file .env -f deployment/docker/docker-compose.yml exec app php artisan storage:link</code></pre>
 

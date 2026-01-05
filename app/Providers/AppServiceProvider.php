@@ -26,8 +26,9 @@ class AppServiceProvider extends ServiceProvider
 
     //  Schema::defaultStringLength(191);
 
-    if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
+    if ($this->app->environment('production') || $this->app->environment('staging')) {
       URL::forceScheme('https');
+      $this->app['request']->server->set('HTTPS', 'on');
     }
   }
 }

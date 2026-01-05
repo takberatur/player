@@ -6,4 +6,5 @@ export { default as ClientDocIntroductionSection } from './ClientDocIntroduction
 export { default as ClientDocRequirementSection } from './ClientDocRequirementSection.vue'
 export { default as ClientDocInstallNginxManualSection } from './ClientDocInstallNginxManualSection.vue'
 export { default as ClientDocInstallDockerSection } from './ClientDocInstallDockerSection.vue'
+export { default as ClientDocNginxReverseProxySection } from './ClientDocNginxReverseProxySection.vue'
 export { default as ClientDocChangeLogSection } from './ClientDocChangeLogSection.vue'
