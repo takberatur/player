@@ -231,6 +231,12 @@ editor123
         <pre><code class="language-bash">docker compose --env-file .env -f deployment/docker/docker-compose.yml restart app</code></pre>
       </li>
       <li>
+        <strong>Other optional command:</strong>
+        <pre><code class="language-bash">docker compose --env-file .env -f deployment/docker/docker-compose.yml build --no-cache
+docker compose --env-file .env -f deployment/docker/docker-compose.yml up -d
+docker compose --env-file .env -f deployment/docker/docker-compose.yml restart app</code></pre>
+      </li>
+      <li>
         <strong>Get Application Logs:</strong>
         <pre><code class="language-bash">docker compose --env-file .env -f deployment/docker/docker-compose.yml exec app cat storage/logs/laravel.log</code></pre>
       </li>
@@ -238,6 +244,17 @@ editor123
         <strong>Puppeteer Issues:</strong> If video downloads fail, ensure
         <code>PUPPETEER_EXECUTABLE_PATH</code> is set correctly in your
         Dockerfile (default is usually <code>/usr/bin/chromium</code>).
+      </li>
+      <li>
+        <strong>Reset Docker:</strong>
+        <pre><code class="language-bash">docker stop $(docker ps -a -q)
+docker rm $(docker ps -a -q)
+docker volume rm $(docker volume ls -q)
+docker rmi $(docker images -q)
+docker container prune
+docker system prune
+docker system prune --volumes
+docker system prune -a --volumes</code></pre>
       </li>
     </ul>
   </div>

@@ -74,6 +74,11 @@ COPY . /var/www/html
 # RUN composer install --optimize-autoloader --no-dev
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
+
+# Install composer dependencies first (needed for wayfinder)
+RUN composer install --optimize-autoloader --no-dev
+
+# Then build frontend
 RUN npm install && npm run build:ssr
 
 # Set permission for storage and bootstrap cache
