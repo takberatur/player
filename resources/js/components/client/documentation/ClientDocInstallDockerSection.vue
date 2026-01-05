@@ -104,12 +104,14 @@ cd player</code></pre>
           Update your database host to match the service name in
           <code>docker-compose.yml</code>.
         </p>
-        <pre><code class="language-ini">DB_CONNECTION=mysql
+        <pre><code class="language-ini"># Database Configuration
+DB_CONNECTION=mysql
 DB_HOST=db
 DB_PORT=3306
 DB_DATABASE=forge_player
 DB_USERNAME=forge
-DB_PASSWORD=your_secure_password</code></pre>
+DB_PASSWORD=your_strong_password
+DB_ROOT_PASSWORD=another_strong_root_password</code></pre>
       </li>
       <li>
         <p><strong>(Optional) Advanced Multi-App Configuration:</strong></p>
