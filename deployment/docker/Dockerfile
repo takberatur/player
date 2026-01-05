@@ -35,7 +35,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     ffmpeg \
-    chromium \
+    wget \
     --no-install-recommends
 
 # Clear cache
@@ -44,6 +44,11 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 # Install yt-dlp
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp
+
+# Install Google Chrome
+RUN wget -q -O google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && apt-get install -y ./google-chrome.deb \
+    && rm google-chrome.deb
 
 # Install PHP extensions
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
@@ -68,7 +73,7 @@ COPY . /var/www/html
 # Install Dependencies
 # RUN composer install --optimize-autoloader --no-dev
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
 RUN npm install && npm run build:ssr
 
 # Set permission for storage and bootstrap cache
