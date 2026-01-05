@@ -59,7 +59,7 @@ COPY . /var/www/html
 
 # Install Dependencies
 # RUN composer install --optimize-autoloader --no-dev
-# RUN npm install && npm run build
+RUN npm install && npm run build:ssr
 
 # Set permission for storage and bootstrap cache
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache

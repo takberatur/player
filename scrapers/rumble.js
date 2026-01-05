@@ -25,6 +25,7 @@ const getEmbedId = async (videoUrl) => {
 };
 
 (async () => {
+  let browser;
   try {
     // Step 1: Get Embed ID
     const embedId = await getEmbedId(url);
@@ -38,18 +39,27 @@ const getEmbedId = async (videoUrl) => {
     const embedUrl = `https://rumble.com/embed/${embedId}/`;
 
     // Step 2: Launch Puppeteer
-    const browser = await puppeteer.launch({
-      headless: true,
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-gpu',
-        '--window-size=1920,1080',
-      ],
-    });
+    try {
+      browser = await puppeteer.launch({
+        headless: true,
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--disable-gpu',
+          '--window-size=1920,1080',
+        ],
+      });
+    } catch (launchError) {
+      console.error(JSON.stringify({
+        error: 'Puppeteer launch failed',
+        details: launchError.message,
+        path: process.env.PUPPETEER_EXECUTABLE_PATH
+      }));
+      exit(1);
+    }
 
     const page = await browser.newPage();
 
@@ -59,64 +69,68 @@ const getEmbedId = async (videoUrl) => {
     );
 
     const foundSources = [];
-    let resolved = false;
 
     // Intercept responses to find video files or API data
     page.on('response', async (response) => {
-      const responseUrl = response.url();
-      const contentType = response.headers()['content-type'] || '';
+      try {
+        const responseUrl = response.url();
+        const headers = response.headers();
+        const contentType = headers['content-type'] || '';
 
-      // Method A: Capture direct MP4/M3U8 links
-      if (responseUrl.match(/\.(mp4|m3u8)(\?|$)/i)) {
-        if (!foundSources.find((s) => s.file === responseUrl)) {
-          foundSources.push({
-            file: responseUrl,
-            type: responseUrl.includes('.m3u8')
-              ? 'application/x-mpegURL'
-              : 'video/mp4',
-            label: 'Auto',
-            height: 720,
-          });
+        // Method A: Capture direct MP4/M3U8 links
+        if (responseUrl.match(/\.(mp4|m3u8)(\?|$)/i)) {
+          if (!foundSources.find((s) => s.file === responseUrl)) {
+            foundSources.push({
+              file: responseUrl,
+              type: responseUrl.includes('.m3u8')
+                ? 'application/x-mpegURL'
+                : 'video/mp4',
+              label: 'Auto',
+              height: 720,
+            });
+          }
         }
-      }
 
-      // Method B: Capture EmbedJS API response
-      if (
-        responseUrl.includes('/embedJS/') &&
-        contentType.includes('application/json')
-      ) {
-        try {
-          const data = await response.json();
-          if (data.u) {
-            const formats = ['mp4', 'webm'];
-            for (const fmt of formats) {
-              if (data.u[fmt]) {
-                const d = data.u[fmt];
-                if (d.url) {
-                  foundSources.push({
-                    file: d.url,
-                    type: `video/${fmt}`,
-                    label: 'HD',
-                    height: 720,
-                  });
-                } else {
-                  for (const key of Object.keys(d)) {
-                    if (d[key] && d[key].url) {
-                      foundSources.push({
-                        file: d[key].url,
-                        type: `video/${fmt}`,
-                        label: key,
-                        height: parseInt(key) || 0,
-                      });
+        // Method B: Capture EmbedJS API response
+        if (
+          responseUrl.includes('/embedJS/') &&
+          contentType.includes('application/json')
+        ) {
+          try {
+            const data = await response.json();
+            if (data.u) {
+              const formats = ['mp4', 'webm'];
+              for (const fmt of formats) {
+                if (data.u[fmt]) {
+                  const d = data.u[fmt];
+                  if (d.url) {
+                    foundSources.push({
+                      file: d.url,
+                      type: `video/${fmt}`,
+                      label: 'HD',
+                      height: 720,
+                    });
+                  } else {
+                    for (const key of Object.keys(d)) {
+                      if (d[key] && d[key].url) {
+                        foundSources.push({
+                          file: d[key].url,
+                          type: `video/${fmt}`,
+                          label: key,
+                          height: parseInt(key) || 0,
+                        });
+                      }
                     }
                   }
                 }
               }
             }
+          } catch (e) {
+            // Ignore JSON parse errors from response body
           }
-        } catch (e) {
-          // Ignore JSON parse errors
         }
+      } catch (e) {
+        // Ignore response processing errors
       }
     });
 
@@ -146,8 +160,10 @@ const getEmbedId = async (videoUrl) => {
         }
       }
 
-      uniqueSources.sort((a, b) => b.height - a.height);
-      uniqueSources[0].default = true;
+      uniqueSources.sort((a, b) => (b.height || 0) - (a.height || 0));
+      if (uniqueSources.length > 0) {
+          uniqueSources[0].default = true;
+      }
 
       console.log(JSON.stringify(uniqueSources));
       exit(0);
@@ -158,6 +174,9 @@ const getEmbedId = async (videoUrl) => {
       exit(1);
     }
   } catch (e) {
+    if (browser) {
+        try { await browser.close(); } catch(err) {}
+    }
     console.error(
       JSON.stringify({ error: 'Script failed', details: e.message }),
     );

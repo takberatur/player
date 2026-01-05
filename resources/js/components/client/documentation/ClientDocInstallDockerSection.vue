@@ -101,6 +101,17 @@ cd player</code></pre>
       <li>
         <p><strong>Crucial Configuration for Docker:</strong></p>
         <p>
+          Update your application URLs to match your server IP or domain.
+          <strong
+            >Replace <code>localhost</code> with your server IP or
+            domain.</strong
+          >
+        </p>
+        <pre><code class="language-ini">#
+APP_URL=http://yourdomain.com
+ASSET_URL=http://yourdomain.com
+VITE_APP_URL=http://yourdomain.com</code></pre>
+        <p>
           Update your database host to match the service name in
           <code>docker-compose.yml</code>.
         </p>
@@ -214,6 +225,10 @@ editor123
       <li>
         <strong>Reset Containers & Volume:</strong>
         <pre><code class="language-bash">docker compose -f deployment/docker/docker-compose.yml down -v</code></pre>
+      </li>
+      <li>
+        <strong>Get Application Logs:</strong>
+        <pre><code class="language-bash">docker compose --env-file .env -f deployment/docker/docker-compose.yml exec app cat storage/logs/laravel.log</code></pre>
       </li>
       <li>
         <strong>Puppeteer Issues:</strong> If video downloads fail, ensure
