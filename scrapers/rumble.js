@@ -49,6 +49,9 @@ const getEmbedId = async (videoUrl) => {
           '--disable-dev-shm-usage',
           '--disable-accelerated-2d-canvas',
           '--disable-gpu',
+          // '--no-zygote', // Removed as it can cause stability issues with recent Chrome Stable
+          // '--single-process', // Removed as it conflicts with crashpad on some envs
+          '--disable-features=IsolateOrigins,site-per-process',
           '--ignore-certificate-errors',
           '--disable-extensions',
           '--disable-background-timer-throttling',

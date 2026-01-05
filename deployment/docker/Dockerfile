@@ -67,6 +67,9 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
+# Fix Git ownership issue
+RUN git config --global --add safe.directory /var/www/html
+
 # Copy application code
 COPY . /var/www/html
 
@@ -74,15 +77,43 @@ COPY . /var/www/html
 # RUN composer install --optimize-autoloader --no-dev
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
+# Fix for Chrome crashpad_handler: --database is required
+ENV XDG_CONFIG_HOME=/var/www/.local
+ENV XDG_CACHE_HOME=/var/www/.local
+ENV HOME=/var/www
 
 # Install composer dependencies first (needed for wayfinder)
-RUN composer install --optimize-autoloader --no-dev
+# Use --no-scripts to prevent pre-uninstall scripts from failing due to missing vendor/autoload.php or other issues
+RUN composer install --optimize-autoloader --no-dev --no-scripts
 
-# Then build frontend
-RUN npm install && npm run build:ssr
+# Run manual commands to ensure everything is set up correctly
+RUN composer dump-autoload --optimize
+RUN php artisan package:discover --ansi
+
+# Generate application key if it doesn't exist
+RUN php artisan key:generate --force --ansi
+
+# Cache configuration
+RUN php artisan config:cache
+
+# Update npm to latest version
+RUN npm install -g npm@latest
+
+# Build temporary client to ensure everything is set up correctly
+RUN npm install && npm run build
+
+# The Manually generate wayfinder routes
+RUN php artisan wayfinder:generate --with-form --ansi
+
+# Then build frontend with SSR
+RUN npm run build:ssr
 
 # Set permission for storage and bootstrap cache
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+
+# Create .local directory for www-data (fix for Puppeteer permission issue)
+RUN mkdir -p /var/www/.local/share/applications \
+    && chown -R www-data:www-data /var/www/.local
 
 # Copy Entrypoint
 COPY deployment/docker/entrypoint.sh /usr/local/bin/entrypoint.sh

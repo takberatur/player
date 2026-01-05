@@ -108,7 +108,8 @@ class VideoController extends Controller
     // Environment variables handling for cross-platform compatibility
     $env = [
       'PATH' => getenv('PATH'),
-      'HOME' => getenv('HOME') ?: getenv('USERPROFILE'), // Linux uses HOME, Windows uses USERPROFILE
+      // Ensure HOME is set, fallback to /tmp if empty (crucial for Puppeteer in Docker)
+      'HOME' => (getenv('HOME') ?: getenv('USERPROFILE')) ?: '/tmp',
       'PUPPETEER_EXECUTABLE_PATH' => env('VITE_RUMBLE_PUPPETEER_EXECUTABLE_PATH'),
     ];
 
