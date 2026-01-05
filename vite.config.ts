@@ -38,6 +38,21 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
         router: 'inertia'
       })
     ],
+    build: {
+      rollupOptions: {
+        external: [
+          'puppeteer',
+          'puppeteer-core',
+          'cheerio',
+          'fluent-ffmpeg',
+          'ytdl-core',
+          '@distube/ytdl-core',
+          'youtubei.js',
+          'megajs',
+          'ffmpeg-static'
+        ]
+      }
+    }
   };
 });
 
