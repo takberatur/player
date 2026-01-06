@@ -345,6 +345,15 @@ class VideoController extends Controller
       ], 500);
     }
 
+    if (isset($result['sources']) && is_array($result['sources'])) {
+      foreach ($result['sources'] as &$source) {
+        if (isset($source['file'])) {
+          // Wrap the URL in the stream proxy
+          $source['file'] = route('video.stream', ['url' => $source['file']]);
+        }
+      }
+    }
+
     return response()->json($result);
   }
 
