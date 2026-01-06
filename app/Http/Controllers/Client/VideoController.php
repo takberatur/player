@@ -40,6 +40,8 @@ class VideoController extends Controller
       'PATH' => getenv('PATH'),
       'HOME' => getenv('HOME') ?: getenv('USERPROFILE'),
       'PUPPETEER_EXECUTABLE_PATH' => env('PUPPETEER_EXECUTABLE_PATH') ?: env('VITE_RUMBLE_PUPPETEER_EXECUTABLE_PATH') ?: ($this->isProduction ? '/usr/bin/google-chrome' : null),
+      'YTDL_COOKIES_JSON' => env('YTDL_COOKIES_JSON'),
+      'YTDL_COOKIES_PATH' => env('YTDL_COOKIES_PATH'),
     ];
 
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
@@ -758,19 +760,34 @@ class VideoController extends Controller
       if ($isHls) {
         try {
           $manifest = $body->getContents();
-          // Rewrite absolute HTTP(S) URLs to proxy
-          $rewritten = preg_replace_callback('/https?:\/\/[^\s]+/i', function ($m) {
-            $segUrl = $m[0];
-            // Avoid rewriting data URIs or comments
-            if (stripos($segUrl, 'http') === 0) {
-              $proxy = route('video.stream', ['url' => $segUrl]);
-              return $proxy;
+          $parsed = parse_url($url);
+          $scheme = $parsed['scheme'] ?? 'https';
+          $host = $parsed['host'] ?? '';
+          $path = $parsed['path'] ?? '';
+          $dir = rtrim(substr($path, 0, strrpos($path, '/') !== false ? strrpos($path, '/') : strlen($path)), '/');
+          $base = $scheme . '://' . $host . ($dir ? $dir . '/' : '/');
+          $lines = preg_split('/\r\n|\r|\n/', $manifest);
+          $out = [];
+          foreach ($lines as $line) {
+            $trim = trim($line);
+            if ($trim === '' || str_starts_with($trim, '#')) {
+              $out[] = $line;
+              continue;
             }
-            return $segUrl;
-          }, $manifest);
+            if (preg_match('/^https?:\\/\\//i', $trim)) {
+              $proxied = route('video.stream', ['url' => $trim]);
+              $out[] = $proxied;
+            } else {
+              $abs = $base . ltrim($trim, '/');
+              $proxied = route('video.stream', ['url' => $abs]);
+              $out[] = $proxied;
+            }
+          }
+          $rewritten = implode("\n", $out);
           // Remove Content-Length since content changed
           unset($responseHeaders['Content-Length']);
           $headersOut = array_intersect_key($responseHeaders, array_flip($forwardHeaders));
+          $headersOut['Content-Type'] = 'application/vnd.apple.mpegurl';
           return response($rewritten, 200, $headersOut);
         } catch (\Exception $e) {
           Log::warning('Failed to rewrite HLS manifest: ' . $e->getMessage());

@@ -1,6 +1,12 @@
+import ytdl from '@distube/ytdl-core';
+import fs from 'fs';
 import { exit } from 'process';
 import puppeteer from 'puppeteer';
-import { Innertube } from 'youtubei.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const url = process.argv[2];
 
@@ -17,20 +23,62 @@ if (!url) {
         inputUrl.match(/[?&]v=([^&]+)/) || inputUrl.match(/youtu\.be\/([^?]+)/);
       return m ? m[1] : null;
     };
-    const getWithInnertube = async (videoId) => {
-      const yt = await Innertube.create({ lang: 'en', location: 'US' });
-      const info = await yt.getInfo(videoId);
+
+    const getWithYtdl = async (inputUrl) => {
+      let cookiesEnv = null;
+      try {
+        if (process.env.YTDL_COOKIES_JSON) {
+          cookiesEnv = JSON.parse(process.env.YTDL_COOKIES_JSON);
+        }
+        if (!cookiesEnv && process.env.YTDL_COOKIES_PATH) {
+          const raw = fs.readFileSync(process.env.YTDL_COOKIES_PATH, 'utf8');
+          cookiesEnv = JSON.parse(raw);
+        }
+      } catch (_) {}
+      const agent = ytdl.createAgent(
+        cookiesEnv && Array.isArray(cookiesEnv)
+          ? cookiesEnv
+          : [
+              {
+                domain: '.youtube.com',
+                expirationDate: Math.floor(Date.now() / 1000) + 86400 * 180,
+                hostOnly: false,
+                httpOnly: false,
+                name: 'CONSENT',
+                path: '/',
+                sameSite: 'no_restriction',
+                secure: true,
+                session: false,
+                value: 'YES+',
+              },
+            ],
+      );
+      const info = await ytdl.getInfo(inputUrl, {
+        agent,
+        playerClients: ['WEB_EMBEDDED', 'IOS', 'ANDROID', 'TV'],
+        requestOptions: {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+            Referer: 'https://www.youtube.com/',
+            Origin: 'https://www.youtube.com',
+          },
+        },
+      });
       const sources = [];
       const prog =
-        info?.formats?.filter(
+        (info?.formats || []).filter(
           (f) =>
-            f.has_audio &&
-            f.has_video &&
-            (f.mime_type || '').includes('mp4') &&
+            (f.hasVideo || f.qualityLabel || f.height) &&
+            (f.hasAudio ||
+              (f.audioCodec || '').length > 0 ||
+              (f.mimeType || '').includes('audio')) &&
+            ((f.mimeType || '').includes('mp4') || f.container === 'mp4') &&
             !!f.url,
         ) || [];
       for (const f of prog) {
-        const label = f.quality_label || (f.height ? `${f.height}p` : 'SD');
+        const label = f.qualityLabel || (f.height ? `${f.height}p` : 'SD');
         sources.push({
           file: f.url,
           type: 'video/mp4',
@@ -38,9 +86,12 @@ if (!url) {
           default: label === '720p',
         });
       }
-      if (info?.hls_manifest_url) {
+      const hlsUrl =
+        info?.player_response?.streamingData?.hlsManifestUrl ||
+        info?.playerResponse?.streamingData?.hlsManifestUrl;
+      if (hlsUrl) {
         sources.push({
-          file: info.hls_manifest_url,
+          file: hlsUrl,
           type: 'application/x-mpegURL',
           label: 'HLS',
           default: sources.length === 0,
@@ -89,13 +140,21 @@ if (!url) {
         const responseUrl = response.url();
         const headers = response.headers();
         const ct = headers['content-type'] || '';
-        if (
-          responseUrl.match(/\.(mp4|m3u8)(\?|$)/i) ||
-          responseUrl.includes('googlevideo.com')
-        ) {
-          const isHls =
-            ct.includes('application/vnd.apple.mpegurl') ||
-            responseUrl.includes('.m3u8');
+        const isExtMedia = /\.(mp4|m3u8)(\?|$)/i.test(responseUrl);
+        const isHlsCT =
+          ct.includes('application/vnd.apple.mpegurl') ||
+          ct.includes('application/x-mpegURL');
+        const isVideoCT = ct.startsWith('video/');
+        const isMedia = isExtMedia || isHlsCT || isVideoCT;
+        const isInvalid =
+          responseUrl.includes('generate_204') ||
+          responseUrl.includes('ptracking') ||
+          responseUrl.includes('ad') ||
+          ct === '' ||
+          ct.startsWith('text/') ||
+          ct.startsWith('image/');
+        if (isMedia && !isInvalid) {
+          const isHls = isHlsCT || responseUrl.includes('.m3u8');
           const type = isHls ? 'application/x-mpegURL' : 'video/mp4';
           if (!foundSources.find((s) => s.file === responseUrl)) {
             foundSources.push({
@@ -275,6 +334,14 @@ if (!url) {
         await browser.close();
         exit(0);
       } else {
+        try {
+          const ytdlSources = await getWithYtdl(url);
+          if (Array.isArray(ytdlSources) && ytdlSources.length > 0) {
+            console.log(JSON.stringify(ytdlSources));
+            await browser.close();
+            exit(0);
+          }
+        } catch (_) {}
         console.error(
           JSON.stringify({
             error: 'No streaming data found (maybe login required?)',
@@ -337,6 +404,17 @@ if (!url) {
         label: 'HLS',
         default: false,
       });
+    }
+
+    if (sources.length === 0) {
+      try {
+        const ytdlAlt = await getWithYtdl(url);
+        if (Array.isArray(ytdlAlt) && ytdlAlt.length > 0) {
+          console.log(JSON.stringify(ytdlAlt));
+          await browser.close();
+          exit(0);
+        }
+      } catch (_) {}
     }
 
     // Sort by quality descending
