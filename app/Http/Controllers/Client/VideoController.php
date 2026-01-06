@@ -39,7 +39,7 @@ class VideoController extends Controller
     $env = [
       'PATH' => getenv('PATH'),
       'HOME' => getenv('HOME') ?: getenv('USERPROFILE'),
-      'PUPPETEER_EXECUTABLE_PATH' => env('VITE_RUMBLE_PUPPETEER_EXECUTABLE_PATH'),
+      'PUPPETEER_EXECUTABLE_PATH' => env('PUPPETEER_EXECUTABLE_PATH') ?: env('VITE_RUMBLE_PUPPETEER_EXECUTABLE_PATH') ?: ($this->isProduction ? '/usr/bin/google-chrome' : null),
     ];
 
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {

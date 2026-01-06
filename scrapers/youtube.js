@@ -1,5 +1,6 @@
 import { exit } from 'process';
 import puppeteer from 'puppeteer';
+import { Innertube } from 'youtubei.js';
 
 const url = process.argv[2];
 
@@ -11,6 +12,44 @@ if (!url) {
 (async () => {
   let browser;
   try {
+    const extractVideoId = (inputUrl) => {
+      const m =
+        inputUrl.match(/[?&]v=([^&]+)/) || inputUrl.match(/youtu\.be\/([^?]+)/);
+      return m ? m[1] : null;
+    };
+    const getWithInnertube = async (videoId) => {
+      const yt = await Innertube.create({ lang: 'en', location: 'US' });
+      const info = await yt.getInfo(videoId);
+      const sources = [];
+      const prog =
+        info?.formats?.filter(
+          (f) =>
+            f.has_audio &&
+            f.has_video &&
+            (f.mime_type || '').includes('mp4') &&
+            !!f.url,
+        ) || [];
+      for (const f of prog) {
+        const label =
+          f.quality_label || (f.height ? `${f.height}p` : 'SD');
+        sources.push({
+          file: f.url,
+          type: 'video/mp4',
+          label,
+          default: label === '720p',
+        });
+      }
+      if (info?.hls_manifest_url) {
+        sources.push({
+          file: info.hls_manifest_url,
+          type: 'application/x-mpegURL',
+          label: 'HLS',
+          default: sources.length === 0,
+        });
+      }
+      return sources;
+    };
+
     // Launch Puppeteer
     browser = await puppeteer.launch({
       headless: true, // or "new"
@@ -82,13 +121,26 @@ if (!url) {
 
     const streamingData = playerResponse.streamingData;
     if (!streamingData) {
-      console.error(
-        JSON.stringify({
-          error: 'No streaming data found (maybe login required?)',
-        }),
-      );
-      await browser.close();
-      exit(1);
+      const videoId = extractVideoId(url);
+      let fallbackSources = [];
+      try {
+        if (videoId) {
+          fallbackSources = await getWithInnertube(videoId);
+        }
+      } catch (_) {}
+      if (fallbackSources && fallbackSources.length > 0) {
+        console.log(JSON.stringify(fallbackSources));
+        await browser.close();
+        exit(0);
+      } else {
+        console.error(
+          JSON.stringify({
+            error: 'No streaming data found (maybe login required?)',
+          }),
+        );
+        await browser.close();
+        exit(1);
+      }
     }
 
     const formats = [
