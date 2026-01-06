@@ -752,6 +752,32 @@ class VideoController extends Controller
         'Content-Disposition'
       ];
 
+      // If this is an HLS manifest, rewrite absolute URLs to proxy through this endpoint
+      $contentType = isset($responseHeaders['Content-Type']) ? (is_array($responseHeaders['Content-Type']) ? $responseHeaders['Content-Type'][0] : $responseHeaders['Content-Type']) : '';
+      $isHls = (stripos($contentType, 'application/vnd.apple.mpegurl') !== false) || (stripos($contentType, 'application/x-mpegURL') !== false) || (stripos($url, '.m3u8') !== false);
+      if ($isHls) {
+        try {
+          $manifest = $body->getContents();
+          // Rewrite absolute HTTP(S) URLs to proxy
+          $rewritten = preg_replace_callback('/https?:\/\/[^\s]+/i', function ($m) {
+            $segUrl = $m[0];
+            // Avoid rewriting data URIs or comments
+            if (stripos($segUrl, 'http') === 0) {
+              $proxy = route('video.stream', ['url' => $segUrl]);
+              return $proxy;
+            }
+            return $segUrl;
+          }, $manifest);
+          // Remove Content-Length since content changed
+          unset($responseHeaders['Content-Length']);
+          $headersOut = array_intersect_key($responseHeaders, array_flip($forwardHeaders));
+          return response($rewritten, 200, $headersOut);
+        } catch (\Exception $e) {
+          Log::warning('Failed to rewrite HLS manifest: ' . $e->getMessage());
+          // Fallback to streaming as-is
+        }
+      }
+
       return response()->stream(function () use ($body) {
         while (!$body->eof()) {
           echo $body->read(1024 * 64); // 64KB chunks

@@ -30,8 +30,7 @@ if (!url) {
             !!f.url,
         ) || [];
       for (const f of prog) {
-        const label =
-          f.quality_label || (f.height ? `${f.height}p` : 'SD');
+        const label = f.quality_label || (f.height ? `${f.height}p` : 'SD');
         sources.push({
           file: f.url,
           type: 'video/mp4',
@@ -52,7 +51,7 @@ if (!url) {
 
     // Launch Puppeteer
     browser = await puppeteer.launch({
-      headless: true, // or "new"
+      headless: 'new',
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: [
         '--no-sandbox',
@@ -75,6 +74,39 @@ if (!url) {
     await page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     );
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    });
+    await page.setCookie({
+      name: 'CONSENT',
+      value: 'YES+',
+      domain: '.youtube.com',
+    });
+    const foundSources = [];
+    page.on('response', async (response) => {
+      try {
+        const responseUrl = response.url();
+        const headers = response.headers();
+        const ct = headers['content-type'] || '';
+        if (
+          responseUrl.match(/\.(mp4|m3u8)(\?|$)/i) ||
+          responseUrl.includes('googlevideo.com')
+        ) {
+          const isHls =
+            ct.includes('application/vnd.apple.mpegurl') ||
+            responseUrl.includes('.m3u8');
+          const type = isHls ? 'application/x-mpegURL' : 'video/mp4';
+          if (!foundSources.find((s) => s.file === responseUrl)) {
+            foundSources.push({
+              file: responseUrl,
+              type,
+              label: isHls ? 'HLS' : 'Auto',
+            });
+          }
+        }
+      } catch (_) {}
+    });
 
     // Try to intercept video playback requests or use ytdl-core logic inside puppeteer if needed?
     // Actually, capturing requests is hard for YouTube because it uses complex chunked loading (DASH/Blob).
@@ -119,17 +151,127 @@ if (!url) {
       exit(1);
     }
 
-    const streamingData = playerResponse.streamingData;
+    let streamingData = playerResponse.streamingData;
     if (!streamingData) {
-      const videoId = extractVideoId(url);
-      let fallbackSources = [];
-      try {
-        if (videoId) {
-          fallbackSources = await getWithInnertube(videoId);
+      streamingData = await page.evaluate(() => {
+        const pr =
+          window.ytInitialPlayerResponse ||
+          (window.ytplayer &&
+            window.ytplayer.config &&
+            window.ytplayer.config.args &&
+            (typeof window.ytplayer.config.args.player_response === 'string'
+              ? JSON.parse(window.ytplayer.config.args.player_response)
+              : window.ytplayer.config.args.player_response));
+        return pr && pr.streamingData ? pr.streamingData : null;
+      });
+    }
+    if (!streamingData) {
+      const m = url.match(/[?&]v=([^&]+)/) || url.match(/youtu\.be\/([^?]+)/);
+      const vid = m ? m[1] : null;
+      if (vid) {
+        const embedUrl = `https://www.youtube.com/embed/${vid}?hl=en&has_verified=1&bpctr=9999999999`;
+        await page.goto(embedUrl, {
+          waitUntil: 'domcontentloaded',
+          timeout: 60000,
+        });
+        streamingData = await page.evaluate(() => {
+          const pr =
+            window.ytInitialPlayerResponse ||
+            (window.ytplayer &&
+              window.ytplayer.config &&
+              window.ytplayer.config.args &&
+              (typeof window.ytplayer.config.args.player_response === 'string'
+                ? JSON.parse(window.ytplayer.config.args.player_response)
+                : window.ytplayer.config.args.player_response));
+          return pr && pr.streamingData ? pr.streamingData : null;
+        });
+        if (!streamingData) {
+          try {
+            const params = new URLSearchParams({
+              video_id: vid,
+              el: 'detailpage',
+              c: 'WEB',
+              cver: '2.20201021.03.00',
+              hl: 'en',
+            });
+            const text = await page.evaluate(async (q) => {
+              const resp = await fetch(
+                `https://www.youtube.com/get_video_info?${q}`,
+                { credentials: 'include' },
+              );
+              return await resp.text();
+            }, params.toString());
+            const prMatch = text.match(/player_response=([^&]+)/);
+            if (prMatch) {
+              const decoded = decodeURIComponent(prMatch[1]);
+              const prJson = JSON.parse(decoded);
+              streamingData = prJson.streamingData || null;
+            }
+          } catch (_) {}
         }
+      }
+    }
+    if (!streamingData) {
+      const mweb =
+        url.replace('www.youtube.com', 'm.youtube.com') +
+        (url.includes('?') ? '&' : '?') +
+        'bpctr=9999999999';
+      await page.goto(mweb, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      streamingData = await page.evaluate(() => {
+        const pr =
+          window.ytInitialPlayerResponse ||
+          (window.ytplayer &&
+            window.ytplayer.config &&
+            window.ytplayer.config.args &&
+            (typeof window.ytplayer.config.args.player_response === 'string'
+              ? JSON.parse(window.ytplayer.config.args.player_response)
+              : window.ytplayer.config.args.player_response));
+        return pr && pr.streamingData ? pr.streamingData : null;
+      });
+      if (!streamingData) {
+        try {
+          const vidMatch =
+            url.match(/[?&]v=([^&]+)/) || url.match(/youtu\.be\/([^?]+)/);
+          const vid2 = vidMatch ? vidMatch[1] : null;
+          if (vid2) {
+            const params = new URLSearchParams({
+              video_id: vid2,
+              el: 'detailpage',
+              c: 'WEB',
+              cver: '2.20201021.03.00',
+              hl: 'en',
+            });
+            const text = await page.evaluate(async (q) => {
+              const resp = await fetch(
+                `https://www.youtube.com/get_video_info?${q}`,
+                { credentials: 'include' },
+              );
+              return await resp.text();
+            }, params.toString());
+            const prMatch = text.match(/player_response=([^&]+)/);
+            if (prMatch) {
+              const decoded = decodeURIComponent(prMatch[1]);
+              const prJson = JSON.parse(decoded);
+              streamingData = prJson.streamingData || null;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+    if (!streamingData) {
+      try {
+        const playBtn =
+          (await page.$('button.ytp-large-play-button')) ||
+          (await page.$('button.ytp-play-button'));
+        if (playBtn) {
+          await playBtn.click();
+        } else {
+          await page.keyboard.press('Space');
+        }
+        await new Promise((r) => setTimeout(r, 8000));
       } catch (_) {}
-      if (fallbackSources && fallbackSources.length > 0) {
-        console.log(JSON.stringify(fallbackSources));
+      if (foundSources.length > 0) {
+        console.log(JSON.stringify(foundSources));
         await browser.close();
         exit(0);
       } else {
@@ -193,7 +335,7 @@ if (!url) {
         file: streamingData.hlsManifestUrl,
         type: 'application/x-mpegURL',
         label: 'HLS',
-        default: true, // HLS is usually best
+        default: false,
       });
     }
 
