@@ -488,6 +488,77 @@ class VideoController extends Controller
     return response()->json($result);
   }
 
+  public function yandexDisk(Request $request)
+  {
+    $link = $request->input('link');
+
+    if (!$link) {
+      return response()->json([
+        'success' => false,
+        'error' => 'No link provided'
+      ], 400);
+    }
+
+    $scriptPath = base_path('scrapers/yandex_disk.js');
+
+    // Use 'node' assuming it's in the PATH.
+    $process = new Process(['node', $scriptPath, $link]);
+    $process->setTimeout(120);
+
+    // Environment variables handling
+    $env = [
+      'PATH' => getenv('PATH'),
+      'HOME' => (getenv('HOME') ?: getenv('USERPROFILE')) ?: '/tmp',
+      'PUPPETEER_EXECUTABLE_PATH' => env('VITE_RUMBLE_PUPPETEER_EXECUTABLE_PATH'),
+    ];
+
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+      $env['SystemRoot'] = getenv('SystemRoot') ?: 'C:\\Windows';
+      $env['SystemDrive'] = getenv('SystemDrive') ?: 'C:';
+      $env['TEMP'] = getenv('TEMP');
+      $env['TMP'] = getenv('TMP');
+    }
+
+    $process->setEnv($env);
+
+    $process->run();
+
+    if (!$process->isSuccessful()) {
+      Log::error('Yandex Disk Scraper Failed', [
+        'link' => $link,
+        'output' => $process->getOutput(),
+        'error' => $process->getErrorOutput(),
+        'exitCode' => $process->getExitCode()
+      ]);
+      return response()->json([
+        'success' => false,
+        'error' => $process->getErrorOutput() ?: 'Failed to fetch Yandex Disk info'
+      ], 500);
+    }
+
+    $output = $process->getOutput();
+    $result = json_decode($output, true);
+
+    if (json_last_error() !== JSON_ERROR_NONE) {
+      Log::error('Yandex Disk Scraper Invalid JSON', ['output' => $output]);
+      return response()->json([
+        'success' => false,
+        'error' => 'Invalid output from scraper'
+      ], 500);
+    }
+
+    if (isset($result['sources']) && is_array($result['sources'])) {
+      foreach ($result['sources'] as &$source) {
+        if (isset($source['file'])) {
+          // Wrap the URL in the stream proxy because Yandex download links expire and are IP bound
+          $source['file'] = route('video.stream', ['url' => $source['file']]);
+        }
+      }
+    }
+
+    return response()->json($result);
+  }
+
   public function streamMega(Request $request)
   {
     $url = $request->query('url');

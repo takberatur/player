@@ -5,6 +5,7 @@ import { useGooglePhotoDownloader } from './useGooglePhotoDownloader';
 import { useGoogleDriveDownloader } from './useGoogleDriveDownloader';
 import { useArchiveDownloader } from './useArchiveDownloader';
 import { useMegaDownloader } from './useMegaDownloader';
+import { useYandexDiskDownloader } from './useYandexDiskDownloader';
 
 type JWSource = { file: string; type: string; label?: string; default?: boolean };
 type JWItem = { title?: string; image?: string; sources: JWSource[] };
@@ -20,7 +21,7 @@ export const useJwPlayer = () => {
   const { getVideoSources: getGoogleDriveVideoSources } = useGoogleDriveDownloader();
   const { getVideoSources: getArchiveVideoSources } = useArchiveDownloader();
   const { getVideoSources: getMegaVideoSources } = useMegaDownloader();
-
+  const { getVideoSources: getYandexVideoSources } = useYandexDiskDownloader();
 
   const toJWSource = (src: VideoSource): JWSource => {
     const isHls = src.file.endsWith('.m3u8');
@@ -144,13 +145,12 @@ export const useJwPlayer = () => {
       const jw: JWItem = { sources: res.sources.map(toJWSource) };
       return { success: true, jw, jsonString: JSON.stringify(jw, null, 2) };
     }
-    if (/yandex\.net|yadi\.sk/i.test(link)) {
-      const api = `https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=${encodeURIComponent(link)}`;
-      const res = await fetch(api);
-      const data = await res.json();
-      const href = String(data.href || '');
-      if (!href) return { success: false, error: 'No download href' };
-      const jw: JWItem = { sources: [{ file: href, type: 'mp4', label: 'HD', default: true }] };
+    if (/yadi\.sk|disk\.yandex\.|yandex\.net/i.test(link)) {
+      const res = await getYandexVideoSources(link);
+      if (!res.success || !res.sources || res.sources.length === 0) {
+        return { success: false, error: res.error || 'No Yandex sources found' };
+      }
+      const jw: JWItem = { sources: res.sources.map(toJWSource) };
       return { success: true, jw, jsonString: JSON.stringify(jw, null, 2) };
     }
     if (/\.m3u8($|\?)/i.test(link) || /\b(hls|m3u8)\b/i.test(link)) {

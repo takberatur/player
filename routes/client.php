@@ -32,6 +32,7 @@ Route::post("/api/facebook-video", [VideoController::class, "facebook"])->name("
 Route::post("/api/google-photo-video", [VideoController::class, "googlePhoto"])->name("sources.google_photo");
 Route::post("/api/google-drive-video", [VideoController::class, "googleDrive"])->name("sources.google_drive");
 Route::post("/api/archive-video", [VideoController::class, "archive"])->name("sources.archive");
+Route::post("/api/yandex-disk-video", [VideoController::class, "yandexDisk"])->name("sources.yandex_disk");
 Route::post("/api/mega-video", [VideoController::class, "mega"])->name("sources.mega");
 Route::get("/api/video-stream", [VideoController::class, "stream"])->name("video.stream");
 Route::get("/api/video-stream-mega", [VideoController::class, "streamMega"])->name("video.stream-mega");
