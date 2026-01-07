@@ -55,13 +55,12 @@ fi
 
 # Install Puppeteer Dependencies
 echo "Installing Puppeteer system dependencies..."
-apt-get install -y libxshmfence-dev libgbm-dev wget unzip fontconfig locales gconf-service libasound2 libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgcc1 libgconf-2-4 libgdk-pixbuf2.0-0 libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 ca-certificates fonts-liberation libappindicator1 libnss3 lsb-release xdg-utils libvips-dev
+apt-get install -y libxshmfence-dev libgbm-dev wget unzip fontconfig locales libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgcc1 libgdk-pixbuf2.0-0 libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 ca-certificates fonts-liberation libnss3 lsb-release xdg-utils libvips-dev
 
 # Install Google Chrome
 echo "Installing Google Chrome Stable..."
 wget -c https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 apt-get update
-apt-get install -y libappindicator1
 dpkg -i google-chrome-stable_current_amd64.deb || apt-get install -f -y
 rm google-chrome-stable_current_amd64.deb
 
@@ -153,6 +152,16 @@ if [ ! -f .env ]; then
     cp .env.example .env
 fi
 
+# Configure APP_URL, ASSET_URL, SESSION_DOMAIN
+echo "Configuring environment variables..."
+# Extract root domain (last two parts) for SESSION_DOMAIN
+SESSION_DOMAIN=".$(echo $DOMAIN_NAME | rev | cut -d. -f1-2 | rev)"
+echo "Setting SESSION_DOMAIN to $SESSION_DOMAIN"
+
+sed -i "s|^APP_URL=.*|APP_URL=https://$DOMAIN_NAME|" .env
+sed -i "s|^ASSET_URL=.*|ASSET_URL=https://$DOMAIN_NAME|" .env
+sed -i "s|^SESSION_DOMAIN=.*|SESSION_DOMAIN=$SESSION_DOMAIN|" .env
+
 echo "--- INSTALL MYSQL ---"
 apt-get install -y mysql-server
 systemctl enable mysql
@@ -213,6 +222,7 @@ if [[ "$CFG_UFW" =~ ^[Yy]$ ]]; then
 fi
 
 echo "Running Composer Install..."
+export COMPOSER_ALLOW_SUPERUSER=1
 composer install --no-interaction --prefer-dist --optimize-autoloader
 
 echo "Running NPM Install & Build..."
@@ -261,6 +271,11 @@ if [[ "$SETUP_SSL" =~ ^[Yy]$ ]]; then
   systemctl reload nginx
   if [ -n "$UFW_ACTIVE" ]; then
     ufw delete allow 80/tcp || ufw deny 80/tcp
+  fi
+  read -p "Check SSL renewal status? (y/n) " CHECK_RENEWAL
+  if [[ "$CHECK_RENEWAL" =~ ^[Yy]$ ]]; then
+    sudo systemctl status certbot.timer || true
+    sudo certbot renew --dry-run || true
   fi
 fi
 

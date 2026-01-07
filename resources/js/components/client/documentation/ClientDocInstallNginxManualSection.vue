@@ -1,3 +1,4 @@
+import { watch } from 'vue';
 <template>
   <div class="prose prose-slate dark:prose-invert max-w-none">
     <h1>Native Deployment Guide (Ubuntu + Nginx)</h1>
@@ -110,11 +111,12 @@ cd player</code></pre>
       class="rounded-lg border shadow-sm"
     />
 
-    <h2>Step 4: Database Configuration</h2>
+    <h3>
+      (Optional) If You want to Configure Database Manually or Change the
+      Default Database Credentials
+    </h3>
     <p>
-      The installation script installs the MySQL driver but
-      <strong>does not create the database</strong>. You need to do this
-      manually.
+      If you're not sure about the database configuration, follow these steps:
     </p>
     <ol>
       <li>
@@ -131,7 +133,11 @@ EXIT;</code></pre>
       </li>
       <li>
         <p>Edit the <code>.env</code> file to update database credentials:</p>
-        <pre><code class="language-bash">nano .env</code></pre>
+        <pre><code class="language-bash"># copy .env.example to .env if it doesn't exist
+cp .env.example .env
+
+# edit .env
+nano .env</code></pre>
         <pre><code class="language-ini">DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
@@ -141,11 +147,11 @@ DB_PASSWORD=your_secure_password</code></pre>
       </li>
       <li>
         <p>Run migrations manually (if skipped during script execution):</p>
-        <pre><code class="language-bash">php artisan migrate --force</code></pre>
+        <pre><code class="language-bash">php artisan migrate --force && php artisan db:seed --force</code></pre>
       </li>
     </ol>
 
-    <h2>Step 5: Verification & Permissions</h2>
+    <h2>Step 4: Verification & Permissions</h2>
     <p>
       Open your browser and visit your domain. If you see the application,
       congratulations!
@@ -164,7 +170,7 @@ sudo chown -R www-data:www-data /var/www/player
 sudo chmod -R 775 /var/www/player/storage
 sudo chmod -R 775 /var/www/player/bootstrap/cache</code></pre>
 
-    <h2>Step 6: Complete Installation</h2>
+    <h2>Step 5: Complete Installation</h2>
     <p>
       Congratulations! Your Forge Player installation is complete. You can
       access the application at <code>http://yourdomain.com</code> (or your
@@ -177,8 +183,50 @@ admin123
 # Editor login
 editor@editor.com
 editor123
-     </code></pre>
-
+      </code></pre>
+    <h2>Step 6: Setup SSR Rendering (Optional)</h2>
+    <p>To enable server-side rendering (SSR), follow these steps:</p>
+    <ol>
+      <li>
+        <p>Edit <code>ecosystem.config.json</code>:</p>
+        <pre><code class="language-json">
+{
+  "apps": [
+    {
+      "name": "enter your instance name",
+      "script": "artisan",
+      "args": [
+        "inertia:start-ssr"
+      ],
+      "instances": "1",
+      "wait_ready": true,
+      "autorestart": true,
+      "max_restarts": 10,
+      "interpreter": "php",
+      "watch": false,
+      "error_file": "./storage/logs/pm2/err.log",
+      "out_file": "./storage/logs/pm2/out.log",
+      "log_file": "./storage/logs/pm2/combined.log",
+      "merge_logs": true,
+      "time": true,
+      "env": {
+        "APP_ENV": "production",
+        "SSR_PORT": "13714"
+      }
+    }
+  ]
+}
+        </code></pre>
+      </li>
+      <li>
+        <p>Grant execution permission to the script:</p>
+        <pre><code class="language-bash">chmod +x deployment/native/setup-ssr.sh</code></pre>
+      </li>
+      <li>
+        <p>Run the SSR setup script:</p>
+        <pre><code class="language-bash">sudo ./deployment/native/setup-ssr.sh</code></pre>
+      </li>
+    </ol>
     <h2>Troubleshooting</h2>
     <ul>
       <li>
