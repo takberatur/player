@@ -41,6 +41,28 @@
     </p>
 
     <h2>Step 2: Upload to Server</h2>
+    <p>Login to your server using SSH:</p>
+    <pre><code class="language-bash"># Login to your server
+ssh user@your-server-ip</code></pre>
+    <p>
+      Navigate to the <code>/var/www</code> directory. If it doesn't exist,
+      create it:
+    </p>
+    <pre><code class="language-bash">
+cd /var/www
+
+# if directory does not exist
+mkdir -p /var/www/player
+cd player</code></pre>
+    <p>If you uploaded a zip file, unzip it on the server:</p>
+    <pre><code class="language-bash">
+# Install unzip if needed
+sudo apt install unzip
+
+# Navigate and unzip
+cd /var/www
+unzip player.zip -d player
+cd player</code></pre>
     <p>
       Upload your project files to your VPS using an FTP client like FileZilla
       or WinSCP. A common destination is <code>/var/www/player</code>.
@@ -50,18 +72,6 @@
       alt="Upload Files via FileZilla"
       class="rounded-lg border shadow-sm"
     />
-    <p>If you uploaded a zip file, unzip it on the server:</p>
-    <pre><code class="language-bash"># Login to your server
-ssh user@your-server-ip
-
-# Install unzip if needed
-sudo apt install unzip
-
-# Navigate and unzip
-cd /var/www
-unzip player.zip -d player
-cd player</code></pre>
-
     <h2>Step 3: Run Installation Script</h2>
     <p>
       We provide a comprehensive script that handles system updates, software
