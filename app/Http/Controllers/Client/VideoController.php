@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
+use YoutubeDl\Options;
+use YoutubeDl\YoutubeDl;
 
 class VideoController extends Controller
 {
@@ -28,65 +30,78 @@ class VideoController extends Controller
       ], 400);
     }
 
-    $scriptPath = base_path('scrapers/youtube.js');
+    try {
+      $yt = new YoutubeDl();
 
-    // Use 'node' assuming it's in the PATH. If not, might need full path.
-    // In Laragon, it is in path.
-    $process = new Process(['node', $scriptPath, $link]);
-    $process->setTimeout(60); // 60 seconds timeout
+      // Set path to yt-dlp binary if not in global PATH, or ensure it's detectable
+      // On Windows/Laragon it seems to be in PATH.
+      // If needed: $yt->setBinPath('/usr/bin/yt-dlp');
 
-    // Environment variables handling for cross-platform compatibility
-    $env = [
-      'PATH' => getenv('PATH'),
-      'HOME' => getenv('HOME') ?: getenv('USERPROFILE'),
-      'PUPPETEER_EXECUTABLE_PATH' => env('PUPPETEER_EXECUTABLE_PATH') ?: env('VITE_RUMBLE_PUPPETEER_EXECUTABLE_PATH') ?: ($this->isProduction ? '/usr/bin/google-chrome' : null),
-      'YTDL_COOKIES_JSON' => env('YTDL_COOKIES_JSON'),
-      'YTDL_COOKIES_PATH' => env('YTDL_COOKIES_PATH'),
-    ];
+      $options = Options::create()
+        ->skipDownload(true)
+        ->url($link)
+        ->format('bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best');
 
-    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-      $env['SystemRoot'] = getenv('SystemRoot') ?: 'C:\\Windows';
-      $env['SystemDrive'] = getenv('SystemDrive') ?: 'C:';
-      $env['TEMP'] = getenv('TEMP');
-      $env['TMP'] = getenv('TMP');
-    }
+      // Use cookies if available
+      $cookiesPath = env('YTDL_COOKIES_PATH');
+      if ($cookiesPath && file_exists($cookiesPath)) {
+        $options->cookies($cookiesPath);
+      } else {
+        // Check for local cookies file in scrapers directory as fallback
+        $localCookies = base_path('scrapers/youtube-cookies.json');
+        if (file_exists($localCookies)) {
+          $options->cookies($localCookies);
+        }
+      }
 
-    $process->setEnv($env);
+      $collection = $yt->download($options);
 
-    $process->run();
+      $sources = [];
+      foreach ($collection->getVideos() as $video) {
+        if ($video->getError() !== null) {
+          Log::error('YoutubeDl Error: ' . $video->getError());
+          continue;
+        }
 
-    if (!$process->isSuccessful()) {
-      Log::error('YouTube Scraper Failed', [
+        // Main video file
+        if ($video->getUrl()) {
+          $label = $video->getHeight() ? $video->getHeight() . 'p' : 'Auto';
+          $sources[] = [
+            'file' => $video->getUrl(),
+            'type' => 'video/mp4',
+            'label' => $label,
+            'default' => $label === '720p' || $label === 'Auto',
+          ];
+        }
+
+        // Check formats if main URL is not enough or we want adaptive
+        // Note: youtube-dl-php might not expose all formats easily in the main object
+        // but usually getUrl() returns the requested format.
+      }
+
+      // Fallback if no sources found from main object (sometimes happens with playlists or specific formats)
+      if (empty($sources)) {
+        throw new \Exception('No streaming data found via yt-dlp');
+      }
+
+      // Proxy the YouTube URLs to avoid 403 Forbidden / IP blocking
+      foreach ($sources as &$source) {
+        if (isset($source['file']) && strpos($source['file'], 'googlevideo.com') !== false) {
+          $source['file'] = route('video.stream', ['url' => $source['file']]);
+        }
+      }
+
+      return response()->json($sources);
+    } catch (\Exception $e) {
+      Log::error('YouTube Scraper Failed (yt-dlp)', [
         'link' => $link,
-        'output' => $process->getOutput(),
-        'error' => $process->getErrorOutput(),
-        'exitCode' => $process->getExitCode()
+        'error' => $e->getMessage()
       ]);
       return response()->json([
         'success' => false,
-        'error' => $process->getErrorOutput() ?: 'Failed to fetch YouTube info'
+        'error' => $e->getMessage()
       ], 500);
     }
-
-    $output = $process->getOutput();
-    $sources = json_decode($output, true);
-
-    if (json_last_error() !== JSON_ERROR_NONE) {
-      Log::error('YouTube Scraper Invalid JSON', ['output' => $output]);
-      return response()->json([
-        'success' => false,
-        'error' => 'Invalid output from scraper'
-      ], 500);
-    }
-
-    // Proxy the YouTube URLs to avoid 403 Forbidden / IP blocking
-    foreach ($sources as &$source) {
-      if (isset($source['file']) && strpos($source['file'], 'googlevideo.com') !== false) {
-        $source['file'] = route('video.stream', ['url' => $source['file']]);
-      }
-    }
-
-    return response()->json($sources);
   }
 
   public function rumble(Request $request)
