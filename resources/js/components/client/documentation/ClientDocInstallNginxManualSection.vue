@@ -226,6 +226,26 @@ editor123
         <p>Run the SSR setup script:</p>
         <pre><code class="language-bash">sudo ./deployment/native/setup-ssr.sh</code></pre>
       </li>
+      <li>
+        <p>For check PM2 ssr application status:</p>
+        <pre><code class="language-bash"># For checking pm2 status:
+pm2 list</code></pre>
+      </li>
+      <li>
+        <p>For Restart PM2 ssr application:</p>
+        <pre><code class="language-bash"># For restarting pm2:
+pm2 restart forge-player-liv</code></pre>
+      </li>
+      <li>
+        <p>For Restart PM2 ssr application:</p>
+        <pre><code class="language-bash"># For restarting pm2:
+pm2 restart forge-player-liv</code></pre>
+      </li>
+      <li>
+        <p>For Restart check PM2 logs:</p>
+        <pre><code class="language-bash"># For checking pm2 logs:
+pm2 logs forge-player-liv --lines 50</code></pre>
+      </li>
     </ol>
     <h2>Troubleshooting</h2>
     <ul>
