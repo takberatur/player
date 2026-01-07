@@ -153,7 +153,65 @@ if [ ! -f .env ]; then
     cp .env.example .env
 fi
 
-# Install App Dependencies
+echo "--- INSTALL MYSQL ---"
+apt-get install -y mysql-server
+systemctl enable mysql
+systemctl start mysql
+read -p "Enter MySQL Database Name [forge_player]: " DB_NAME
+DB_NAME=${DB_NAME:-forge_player}
+read -p "Enter MySQL Username [forge]: " DB_USER
+DB_USER=${DB_USER:-forge}
+read -p "Enter MySQL Password [password]: " DB_PASS
+DB_PASS=${DB_PASS:-password}
+mysql -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -e "CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED WITH mysql_native_password BY '$DB_PASS';"
+mysql -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost'; FLUSH PRIVILEGES;"
+sed -i "s/^DB_HOST=.*/DB_HOST=127.0.0.1/" .env
+sed -i "s/^DB_DATABASE=.*/DB_DATABASE=$DB_NAME/" .env
+sed -i "s/^DB_USERNAME=.*/DB_USERNAME=$DB_USER/" .env
+sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$DB_PASS/" .env
+read -p "Enable remote MySQL access? (y/n) " MYSQL_REMOTE
+read -p "MySQL Port [3306]: " MYSQL_PORT
+MYSQL_PORT=${MYSQL_PORT:-3306}
+BIND_ADDR="127.0.0.1"
+if [[ "$MYSQL_REMOTE" =~ ^[Yy]$ ]]; then
+  read -p "MySQL Bind Address [0.0.0.0]: " MYSQL_BIND
+  BIND_ADDR=${MYSQL_BIND:-0.0.0.0}
+  mysql -e "CREATE USER IF NOT EXISTS '$DB_USER'@'%' IDENTIFIED WITH mysql_native_password BY '$DB_PASS';"
+  mysql -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'%'; FLUSH PRIVILEGES;"
+fi
+cat > /etc/mysql/mysql.conf.d/forge-player.cnf <<EOF
+[mysqld]
+bind-address = $BIND_ADDR
+port = $MYSQL_PORT
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+default_authentication_plugin = mysql_native_password
+sql_mode = ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+EOF
+sed -i "s/^DB_PORT=.*/DB_PORT=$MYSQL_PORT/" .env
+systemctl restart mysql
+
+read -p "Configure UFW firewall? (y/n) " CFG_UFW
+if [[ "$CFG_UFW" =~ ^[Yy]$ ]]; then
+  apt-get install -y ufw
+  read -p "SSH Port [22]: " SSH_PORT
+  SSH_PORT=${SSH_PORT:-22}
+  ufw default deny incoming
+  ufw default allow outgoing
+  ufw allow ${SSH_PORT}/tcp
+  ufw allow 443/tcp
+  if [[ "$MYSQL_REMOTE" =~ ^[Yy]$ ]]; then
+    read -p "Allow MySQL from CIDR/IP (leave empty to allow any): " MYSQL_CIDR
+    if [ -n "$MYSQL_CIDR" ]; then
+      ufw allow from "$MYSQL_CIDR" to any port "$MYSQL_PORT" proto tcp
+    else
+      ufw allow ${MYSQL_PORT}/tcp
+    fi
+  fi
+  ufw --force enable
+fi
+
 echo "Running Composer Install..."
 composer install --no-interaction --prefer-dist --optimize-autoloader
 
@@ -180,13 +238,31 @@ fi
 # Seed Database
 read -p "Run database seeder? (y/n) " RUN_SEED
 if [[ "$RUN_SEED" =~ ^[Yy]$ ]]; then
-    php artisan db:seed --force
+php artisan db:seed --force
 fi
 
 # Ensure permissions again (in case composer/npm changed ownership of new files)
 chown -R www-data:www-data "$CURRENT_DIR"
 chmod -R 775 "$CURRENT_DIR/storage"
 chmod -R 775 "$CURRENT_DIR/bootstrap/cache"
+
+echo "--- 5. SETUP SSL (Let's Encrypt) ---"
+read -p "Setup SSL with Let's Encrypt? (y/n) " SETUP_SSL
+if [[ "$SETUP_SSL" =~ ^[Yy]$ ]]; then
+  if ! command -v certbot >/dev/null 2>&1; then
+    apt-get install -y certbot python3-certbot-nginx
+  fi
+  UFW_ACTIVE=$(ufw status | grep -i "Status: active" || true)
+  if [ -n "$UFW_ACTIVE" ]; then
+    ufw allow 80/tcp
+  fi
+  read -p "Admin Email for Let's Encrypt: " LE_EMAIL
+  certbot --nginx -d "$DOMAIN_NAME" --non-interactive --agree-tos -m "$LE_EMAIL" --redirect || true
+  systemctl reload nginx
+  if [ -n "$UFW_ACTIVE" ]; then
+    ufw delete allow 80/tcp || ufw deny 80/tcp
+  fi
+fi
 
 echo "--- INSTALLATION COMPLETE ---"
 echo "Your app is deployed at http://$DOMAIN_NAME"
