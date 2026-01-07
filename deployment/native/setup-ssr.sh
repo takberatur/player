@@ -52,10 +52,24 @@ pm2 delete forge-player-liv 2>/dev/null || true
 pm2 start ecosystem.config.json
 
 echo "--- 5. SETUP STARTUP ---"
-# Generate startup script and execute it
-# This part detects the init system and generates the command
-# We use '|| true' to avoid failure if already setup
-pm2 startup systemd -u root --hp /root 2>/dev/null || pm2 startup
+# Unconfigure first to be safe (ignore errors)
+pm2 unstartup systemd 2>/dev/null || true
+
+# Generate startup command and capture output
+echo "Configuring PM2 Startup..."
+# We explicitly ask for systemd and root user
+STARTUP_OUTPUT=$(pm2 startup systemd -u root --hp /root 2>&1)
+
+# Check if output contains the setup command (sudo env PATH...)
+if echo "$STARTUP_OUTPUT" | grep -q "sudo env PATH"; then
+    CMD=$(echo "$STARTUP_OUTPUT" | grep "sudo env PATH")
+    echo "Executing auto-generated startup command: $CMD"
+    eval "$CMD"
+else
+    # If no command needed (already setup) or different output, just show it
+    echo "PM2 Startup Output:"
+    echo "$STARTUP_OUTPUT"
+fi
 
 pm2 save
 
