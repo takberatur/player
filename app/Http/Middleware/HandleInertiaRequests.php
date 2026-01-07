@@ -20,6 +20,18 @@ class HandleInertiaRequests extends Middleware
   protected $rootView = 'app';
 
   /**
+   * Handle the incoming request.
+   *
+   * @param  \Illuminate\Http\Request  $request
+   * @param  \Closure  $next
+   * @return mixed
+   */
+  public function handle(Request $request, \Closure $next)
+  {
+    return parent::handle($request, $next);
+  }
+
+  /**
    * Determines the current asset version.
    *
    * @see https://inertiajs.com/asset-versioning

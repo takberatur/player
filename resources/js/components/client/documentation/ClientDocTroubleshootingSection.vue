@@ -46,6 +46,60 @@
           </ul>
         </p>
       </div>
+      <div class="rounded-md bg-slate-100 p-4 dark:bg-slate-800">
+        <h3 class="text-slate-900 dark:text-slate-100">2. Rumble Video for deployment Ubuntu Native / Manual Troubleshooting</h3>
+        <p class="text-slate-900 dark:text-slate-100">
+          If you're having trouble with rumble video playback on Ubuntu Native / Manual installation, please follow the steps
+          in bellow
+        </p>
+        <div class="rounded-md bg-white p-4 dark:bg-neutral-900">
+       <p>Grant execution permission to the script:</p>
+       <pre><code class="language-bash"># Grant execution permission to the script:
+chmod +x deployment/native/fix-rumble.sh
+</code></pre>
+<p>Run the script:</p>
+       <pre><code class="language-bash"># Run the script:
+sudo ./deployment/native/fix-rumble.sh
+</code></pre>
+        </div>
+      </div>
+      <div class="rounded-md bg-slate-100 p-4 dark:bg-slate-800">
+        <h3 class="text-slate-900 dark:text-slate-100">3. Error permission for deployment Ubuntu Native / Manual Troubleshooting</h3>
+        <p class="text-slate-900 dark:text-slate-100">
+          If you're having trouble with permission error on Ubuntu Native / Manual installation, please follow the steps
+          in bellow
+        </p>
+        <div class="rounded-md bg-white p-4 dark:bg-neutral-900">
+       <p>Grant execution permission to the script:</p>
+       <pre><code class="language-bash"># Grant execution permission to the script:
+chmod +x deployment/native/fix-permissions.sh
+</code></pre>
+<p>Run the script:</p>
+       <pre><code class="language-bash"># Run the script:
+sudo ./deployment/native/fix-permissions.sh
+</code></pre>
+       <p>Or execute the script manually with command:</p>
+       <pre><code class="language-bash"># Run the script with sudo:
+# Fix permissions for current root project
+chown -R www-data:www-data /var/www/player
+
+# Fix permissions for node_modules directory & vite.js
+chmod -R +x node_modules/.bin/
+chmod +x node_modules/vite/bin/vite.js
+chmod -R 755 node_modules
+</code></pre>
+       <p>Rebuild if still error:</p>
+       <pre><code class="language-bash"># Rebuild the project:
+# If you previously built the project normally
+npm run build
+
+# Or if you previously built the project with SSR mode
+npm run build:ssr
+pm2 restart instance-name
+</code></pre>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>

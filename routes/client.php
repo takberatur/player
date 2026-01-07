@@ -24,7 +24,15 @@ Route::get("play/{id}", [PlayerController::class, "index"])->name("play.index");
 // Subtitle
 Route::get("/subtitle/{url}", [SubtitleController::class, "show"])->where('url', '.*')->name("subtitle.show");
 
-
+// Debug Route - Delete later
+Route::get('/api/test-log', function () {
+  try {
+    \Illuminate\Support\Facades\Log::info('Test Log Entry from /api/test-log');
+    return response()->json(['success' => true, 'message' => 'Logging works! Check laravel.log']);
+  } catch (\Throwable $e) {
+    return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+  }
+});
 
 Route::post("/api/rumble-video", [VideoController::class, "rumble"])->name("sources.rumble");
 Route::post("/api/youtube-video", [VideoController::class, "youtube"])->name("sources.youtube");

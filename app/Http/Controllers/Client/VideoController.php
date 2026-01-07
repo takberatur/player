@@ -355,71 +355,118 @@ class VideoController extends Controller
       ], 400);
     }
 
-    $scriptPath = base_path('scrapers/rumble.js');
+    try {
+      $scriptPath = base_path('scrapers/rumble.js');
 
-    // Use 'node' assuming it's in the PATH.
-    // Explicitly pass environment variables to avoid OpenSSL/CSPRNG errors on Windows
-    $process = new Process(['node', $scriptPath, $link]);
-    $process->setTimeout(120);
+      // Determine Node path
+      $nodePath = 'node';
+      if (file_exists('/usr/bin/node')) {
+        $nodePath = '/usr/bin/node';
+      } elseif (file_exists('/usr/local/bin/node')) {
+        $nodePath = '/usr/local/bin/node';
+      } elseif (strtoupper(substr(PHP_OS, 0, 3)) !== 'WIN') {
+        $detectNode = trim(shell_exec('which node'));
+        if ($detectNode) {
+          $nodePath = $detectNode;
+        }
+      }
 
-    // Environment variables handling for cross-platform compatibility
-    $env = [
-      'PATH' => getenv('PATH'),
-      // Ensure HOME is set, fallback to /tmp if empty (crucial for Puppeteer in Docker)
-      'HOME' => (getenv('HOME') ?: getenv('USERPROFILE')) ?: '/tmp',
-      'PUPPETEER_EXECUTABLE_PATH' => env('VITE_RUMBLE_PUPPETEER_EXECUTABLE_PATH'),
-    ];
+      // Use the detected node path
+      $process = new Process([$nodePath, $scriptPath, $link]);
+      $process->setWorkingDirectory(base_path()); // Ensure we run from project root for package.json resolution
+      $process->setTimeout(120);
 
-    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-      // Windows-specific variables for Node.js/OpenSSL
-      $env['SystemRoot'] = getenv('SystemRoot') ?: 'C:\\Windows';
-      $env['SystemDrive'] = getenv('SystemDrive') ?: 'C:';
-      $env['TEMP'] = getenv('TEMP');
-      $env['TMP'] = getenv('TMP');
-    }
+      // Define a safe writable temp directory for Puppeteer/Chrome
+      // Use storage path to avoid permission issues with /tmp
+      $tempDir = storage_path('app/scraper-home');
+      if (!file_exists($tempDir)) {
+        mkdir($tempDir, 0755, true);
+      }
 
-    $process->setEnv($env);
+      // Determine Puppeteer Executable Path with fallbacks
+      $puppeteerPath = env('VITE_RUMBLE_PUPPETEER_EXECUTABLE_PATH');
+      if (!$puppeteerPath && file_exists('/usr/bin/google-chrome')) {
+        $puppeteerPath = '/usr/bin/google-chrome';
+      } elseif (!$puppeteerPath && file_exists('/usr/bin/google-chrome-stable')) {
+        $puppeteerPath = '/usr/bin/google-chrome-stable';
+      } elseif (!$puppeteerPath && file_exists('/usr/bin/chromium-browser')) {
+        $puppeteerPath = '/usr/bin/chromium-browser';
+      }
 
-    $process->run();
+      // Environment variables handling for cross-platform compatibility
+      $env = [
+        'PATH' => getenv('PATH'),
+        // Force HOME to a writable temp dir to avoid /var/www/.local permission errors
+        'HOME' => $tempDir,
+        'XDG_CONFIG_HOME' => $tempDir . '/.config',
+        'XDG_CACHE_HOME' => $tempDir . '/.cache',
+        'PUPPETEER_EXECUTABLE_PATH' => $puppeteerPath,
+      ];
 
-    if (!$process->isSuccessful()) {
-      $errorOutput = $process->getErrorOutput();
-      Log::error('Rumble Scraper Failed', [
-        'link' => $link,
-        'output' => $process->getOutput(),
-        'error' => $errorOutput,
-        'exitCode' => $process->getExitCode()
+      if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        // Windows-specific variables for Node.js/OpenSSL
+        $env['SystemRoot'] = getenv('SystemRoot') ?: 'C:\\Windows';
+        $env['SystemDrive'] = getenv('SystemDrive') ?: 'C:';
+        $env['TEMP'] = getenv('TEMP');
+        $env['TMP'] = getenv('TMP');
+      }
+
+      $process->setEnv($env);
+
+      $process->run();
+
+      if (!$process->isSuccessful()) {
+        $errorOutput = $process->getErrorOutput();
+        $output = $process->getOutput();
+
+        Log::error('Rumble Scraper Failed', [
+          'link' => $link,
+          'node_path' => $nodePath,
+          'output' => $output,
+          'error' => $errorOutput,
+          'exitCode' => $process->getExitCode()
+        ]);
+
+        // Return the actual error to the client for debugging
+        return response()->json([
+          'success' => false,
+          'error' => 'Scraper failed: ' . ($errorOutput ?: 'Unknown error'),
+          'details' => $output
+        ], 500);
+      }
+
+      $output = $process->getOutput();
+      $sources = json_decode($output, true);
+
+      if (json_last_error() !== JSON_ERROR_NONE) {
+        Log::error('Rumble Scraper Invalid JSON', ['output' => $output]);
+        return response()->json([
+          'success' => false,
+          'error' => 'Invalid output from scraper: ' . $output
+        ], 500);
+      }
+
+      // Check if the script returned an error object
+      if (isset($sources['error'])) {
+        Log::error('Rumble Scraper Error Object', ['error' => $sources['error']]);
+        return response()->json([
+          'success' => false,
+          'error' => $sources['error']
+        ], 500);
+      }
+
+      return response()->json($sources);
+    } catch (\Throwable $e) {
+      Log::error('Rumble Controller Exception', [
+        'message' => $e->getMessage(),
+        'trace' => $e->getTraceAsString()
       ]);
 
-      // Fallback to error response
       return response()->json([
         'success' => false,
-        'error' => $errorOutput ?: 'Failed to fetch Rumble info'
+        'error' => 'Server Error: ' . $e->getMessage()
       ], 500);
     }
-
-    $output = $process->getOutput();
-    $sources = json_decode($output, true);
-
-    if (json_last_error() !== JSON_ERROR_NONE) {
-      Log::error('Rumble Scraper Invalid JSON', ['output' => $output]);
-      // If output is not valid JSON, it might be an error string or empty
-      return response()->json([
-        'success' => false,
-        'error' => 'Invalid output from scraper: ' . $output
-      ], 500);
-    }
-
-    // Check if the script returned an error object
-    if (isset($sources['error'])) {
-      Log::error('Rumble Scraper Error Object', ['error' => $sources['error']]);
-      return response()->json([
-        'success' => false,
-        'error' => $sources['error']
-      ], 500);
-    }
-
-    return response()->json($sources);
   }
 
   public function facebook(Request $request)
@@ -433,54 +480,110 @@ class VideoController extends Controller
       ], 400);
     }
 
-    $scriptPath = base_path('scrapers/facebook.js');
+    try {
+      $scriptPath = base_path('scrapers/facebook.js');
 
-    // Use 'node' assuming it's in the PATH.
-    $process = new Process(['node', $scriptPath, $link]);
-    $process->setTimeout(120);
+      // Determine Node path
+      $nodePath = 'node';
+      if (file_exists('/usr/bin/node')) {
+        $nodePath = '/usr/bin/node';
+      } elseif (file_exists('/usr/local/bin/node')) {
+        $nodePath = '/usr/local/bin/node';
+      } elseif (strtoupper(substr(PHP_OS, 0, 3)) !== 'WIN') {
+        $detectNode = trim(shell_exec('which node'));
+        if ($detectNode) {
+          $nodePath = $detectNode;
+        }
+      }
 
-    // Environment variables handling for cross-platform compatibility
-    $env = [
-      'PATH' => getenv('PATH'),
-      'HOME' => getenv('HOME') ?: getenv('USERPROFILE'),
-    ];
+      $process = new Process([$nodePath, $scriptPath, $link]);
+      $process->setWorkingDirectory(base_path());
+      $process->setTimeout(120);
 
-    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-      $env['SystemRoot'] = getenv('SystemRoot') ?: 'C:\\Windows';
-      $env['SystemDrive'] = getenv('SystemDrive') ?: 'C:';
-      $env['TEMP'] = getenv('TEMP');
-      $env['TMP'] = getenv('TMP');
-    }
+      // Use storage path for scraper temp files to avoid permission issues with /tmp
+      $tempDir = storage_path('app/scraper-home');
+      if (!file_exists($tempDir)) {
+        mkdir($tempDir, 0755, true);
+      }
 
-    $process->setEnv($env);
+      // Determine Puppeteer Executable Path with fallbacks
+      $puppeteerPath = env('VITE_RUMBLE_PUPPETEER_EXECUTABLE_PATH');
+      if (!$puppeteerPath && file_exists('/usr/bin/google-chrome')) {
+        $puppeteerPath = '/usr/bin/google-chrome';
+      } elseif (!$puppeteerPath && file_exists('/usr/bin/google-chrome-stable')) {
+        $puppeteerPath = '/usr/bin/google-chrome-stable';
+      } elseif (!$puppeteerPath && file_exists('/usr/bin/chromium-browser')) {
+        $puppeteerPath = '/usr/bin/chromium-browser';
+      }
 
-    $process->run();
+      $env = [
+        'PATH' => getenv('PATH'),
+        'HOME' => $tempDir,
+        'XDG_CONFIG_HOME' => $tempDir . '/.config',
+        'XDG_CACHE_HOME' => $tempDir . '/.cache',
+        'PUPPETEER_EXECUTABLE_PATH' => $puppeteerPath,
+      ];
 
-    if (!$process->isSuccessful()) {
-      Log::error('Facebook Scraper Failed', [
-        'link' => $link,
-        'output' => $process->getOutput(),
-        'error' => $process->getErrorOutput(),
-        'exitCode' => $process->getExitCode()
+      if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $env['SystemRoot'] = getenv('SystemRoot') ?: 'C:\\Windows';
+        $env['SystemDrive'] = getenv('SystemDrive') ?: 'C:';
+        $env['TEMP'] = getenv('TEMP');
+        $env['TMP'] = getenv('TMP');
+      }
+
+      $process->setEnv($env);
+      $process->run();
+
+      if (!$process->isSuccessful()) {
+        $errorOutput = $process->getErrorOutput();
+        $output = $process->getOutput();
+
+        Log::error('Facebook Scraper Failed', [
+          'link' => $link,
+          'node_path' => $nodePath,
+          'output' => $output,
+          'error' => $errorOutput,
+          'exitCode' => $process->getExitCode()
+        ]);
+        return response()->json([
+          'success' => false,
+          'error' => 'Scraper failed: ' . ($errorOutput ?: 'Unknown error'),
+          'details' => $output
+        ], 500);
+      }
+
+      $output = $process->getOutput();
+      $sources = json_decode($output, true);
+
+      if (json_last_error() !== JSON_ERROR_NONE) {
+        Log::error('Facebook Scraper Invalid JSON', ['output' => $output]);
+        return response()->json([
+          'success' => false,
+          'error' => 'Invalid output from scraper: ' . $output
+        ], 500);
+      }
+
+      if (isset($sources['error'])) {
+        return response()->json([
+          'success' => false,
+          'error' => $sources['error']
+        ], 500);
+      }
+
+      return response()->json([
+        'success' => true,
+        'sources' => $sources
+      ]);
+    } catch (\Throwable $e) {
+      Log::error('Facebook Controller Exception', [
+        'message' => $e->getMessage(),
+        'trace' => $e->getTraceAsString()
       ]);
       return response()->json([
         'success' => false,
-        'error' => $process->getErrorOutput() ?: 'Failed to fetch Facebook info'
+        'error' => 'Server Error: ' . $e->getMessage()
       ], 500);
     }
-
-    $output = $process->getOutput();
-    $result = json_decode($output, true);
-
-    if (json_last_error() !== JSON_ERROR_NONE) {
-      Log::error('Facebook Scraper Invalid JSON', ['output' => $output]);
-      return response()->json([
-        'success' => false,
-        'error' => 'Invalid output from scraper'
-      ], 500);
-    }
-
-    return response()->json($result);
   }
 
   public function archive(Request $request)

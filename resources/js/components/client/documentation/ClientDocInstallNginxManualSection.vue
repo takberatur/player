@@ -234,17 +234,17 @@ pm2 list</code></pre>
       <li>
         <p>For Restart PM2 ssr application:</p>
         <pre><code class="language-bash"># For restarting pm2:
-pm2 restart forge-player-liv</code></pre>
+pm2 restart instance-name</code></pre>
       </li>
       <li>
-        <p>For Restart PM2 ssr application:</p>
-        <pre><code class="language-bash"># For restarting pm2:
-pm2 restart forge-player-liv</code></pre>
+        <p>For Deleting PM2 ssr application:</p>
+        <pre><code class="language-bash"># For deleting pm2:
+pm2 delete instance-name</code></pre>
       </li>
       <li>
         <p>For Restart check PM2 logs:</p>
         <pre><code class="language-bash"># For checking pm2 logs:
-pm2 logs forge-player-liv --lines 50</code></pre>
+pm2 logs instance-name --lines 50</code></pre>
       </li>
     </ol>
     <h2>Troubleshooting</h2>

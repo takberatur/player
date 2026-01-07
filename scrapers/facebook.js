@@ -10,7 +10,10 @@ if (!url) {
 
 // Function to extract video ID from various Facebook URL formats
 const getVideoId = (link) => {
-  const match = link.match(/\/videos\/(\d+)/) || link.match(/video_id=(\d+)/) || link.match(/\/watch\/\?v=(\d+)/);
+  const match =
+    link.match(/\/videos\/(\d+)/) ||
+    link.match(/video_id=(\d+)/) ||
+    link.match(/\/watch\/\?v=(\d+)/);
   return match ? match[1] : null;
 };
 
@@ -25,19 +28,22 @@ const getVideoId = (link) => {
 
   try {
     const browser = await puppeteer.launch({
-      headless: "new",
+      headless: true,
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--disable-gpu',
+        '--disable-features=IsolateOrigins,site-per-process',
+        `--user-data-dir=${process.env.HOME || '/tmp'}/puppeteer_user_data_fb_${Date.now()}`,
       ],
     });
 
     const page = await browser.newPage();
     await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     );
 
     // Go to the embed page
@@ -47,8 +53,12 @@ const getVideoId = (link) => {
     const content = await page.content();
 
     // Extract sources using Regex (similar to previous frontend logic)
-    const hdMatch = content.match(/"hd_src":"(.*?)"/);
-    const sdMatch = content.match(/"sd_src":"(.*?)"/);
+    let hdMatch = content.match(/"hd_src":"(.*?)"/);
+    let sdMatch = content.match(/"sd_src":"(.*?)"/);
+
+    // Fallback patterns
+    if (!hdMatch) hdMatch = content.match(/"playable_url_quality_hd":"(.*?)"/);
+    if (!sdMatch) sdMatch = content.match(/"playable_url":"(.*?)"/);
 
     const sources = [];
 
@@ -73,15 +83,14 @@ const getVideoId = (link) => {
     await browser.close();
 
     if (sources.length === 0) {
-        // Fallback: Try to find video tag src if regex fails
-        // Sometimes the embed page structure is different
-         console.error(JSON.stringify({ error: 'No sources found via regex' }));
-         exit(1);
+      // Fallback: Try to find video tag src if regex fails
+      // Sometimes the embed page structure is different
+      console.error(JSON.stringify({ error: 'No sources found via regex' }));
+      exit(1);
     }
 
-    console.log(JSON.stringify({ success: true, sources }));
+    console.log(JSON.stringify(sources));
     exit(0);
-
   } catch (e) {
     console.error(JSON.stringify({ error: e.message }));
     exit(1);

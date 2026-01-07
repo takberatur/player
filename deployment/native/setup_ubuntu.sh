@@ -64,6 +64,11 @@ apt-get update
 dpkg -i google-chrome-stable_current_amd64.deb || apt-get install -f -y
 rm google-chrome-stable_current_amd64.deb
 
+# Set Chrome Path for Puppeteer
+CHROME_PATH=$(which google-chrome || which google-chrome-stable)
+echo "Chrome installed at: $CHROME_PATH"
+
+
 # Configure PHP Limits
 echo "Configuring PHP limits..."
 PHP_INI="/etc/php/8.4/fpm/php.ini"
@@ -111,6 +116,9 @@ server {
         fastcgi_pass unix:/var/run/php/php8.4-fpm.sock;
         fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
         include fastcgi_params;
+        fastcgi_buffer_size 4096k;
+        fastcgi_buffers 128 4096k;
+        fastcgi_busy_buffers_size 4096k;
     }
 
     location ~ /\.(?!well-known).* {
@@ -162,6 +170,15 @@ sed -i "s|^APP_URL=.*|APP_URL=https://$DOMAIN_NAME|" .env
 sed -i "s|^ASSET_URL=.*|ASSET_URL=https://$DOMAIN_NAME|" .env
 sed -i "s|^VITE_APP_URL=.*|VITE_APP_URL=https://$DOMAIN_NAME|" .env
 sed -i "s|^SESSION_DOMAIN=.*|SESSION_DOMAIN=$SESSION_DOMAIN|" .env
+
+if [ -n "$CHROME_PATH" ]; then
+    if grep -q "VITE_RUMBLE_PUPPETEER_EXECUTABLE_PATH=" .env; then
+        sed -i "s|^VITE_RUMBLE_PUPPETEER_EXECUTABLE_PATH=.*|VITE_RUMBLE_PUPPETEER_EXECUTABLE_PATH=$CHROME_PATH|" .env
+    else
+        echo "" >> .env
+        echo "VITE_RUMBLE_PUPPETEER_EXECUTABLE_PATH=$CHROME_PATH" >> .env
+    fi
+fi
 
 echo "--- INSTALL MYSQL ---"
 apt-get install -y mysql-server
