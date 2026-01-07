@@ -37,6 +37,7 @@ services:
         volumes:
             - ../../:/var/www/html
             - /var/www/html/node_modules
+            - /var/www/html/vendor
             # Optional mounts for cookies and cache
             - ./volumes/config:/var/www/html/config
             - ./volumes/yt-dlp-cache:/var/www/html/storage/yt-dlp-cache

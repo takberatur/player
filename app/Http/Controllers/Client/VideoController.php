@@ -86,6 +86,14 @@ class VideoController extends Controller
       if ($cookiesJsonEnv) {
         $json = json_decode($cookiesJsonEnv, true);
         if (json_last_error() === JSON_ERROR_NONE && is_array($json)) {
+          $names = array_map(function ($c) {
+            return $c['name'] ?? '';
+          }, $json);
+          $hasSecureSession = in_array('__Secure-3PSID', $names, true) || in_array('__Secure-3PSIDTS', $names, true) || in_array('__Secure-3PSIDCC', $names, true);
+          Log::info('YTDL cookies (env JSON) parsed', [
+            'count' => count($names),
+            'has_secure_session' => $hasSecureSession,
+          ]);
           $netscapeContent = "# Netscape HTTP Cookie File\n";
           foreach ($json as $cookie) {
             $domain = $cookie['domain'] ?? '';
@@ -107,6 +115,15 @@ class VideoController extends Controller
         $json = json_decode($content, true);
 
         if (json_last_error() === JSON_ERROR_NONE && is_array($json)) {
+          $names = array_map(function ($c) {
+            return $c['name'] ?? '';
+          }, $json);
+          $hasSecureSession = in_array('__Secure-3PSID', $names, true) || in_array('__Secure-3PSIDTS', $names, true) || in_array('__Secure-3PSIDCC', $names, true);
+          Log::info('YTDL cookies (file JSON) parsed', [
+            'path' => $cookiesPath,
+            'count' => count($names),
+            'has_secure_session' => $hasSecureSession,
+          ]);
           // Convert JSON to Netscape format
           $netscapeContent = "# Netscape HTTP Cookie File\n";
           foreach ($json as $cookie) {
@@ -126,6 +143,21 @@ class VideoController extends Controller
           $options->cookies($tempCookiesFile);
         } else {
           // Assume it's already Netscape format
+          $lines = preg_split('/\r\n|\r|\n/', $content);
+          $names = [];
+          foreach ($lines as $line) {
+            if (!$line || $line[0] === '#') continue;
+            $parts = preg_split('/\t/', $line);
+            if (count($parts) >= 7) {
+              $names[] = $parts[5];
+            }
+          }
+          $hasSecureSession = in_array('__Secure-3PSID', $names, true) || in_array('__Secure-3PSIDTS', $names, true) || in_array('__Secure-3PSIDCC', $names, true);
+          Log::info('YTDL cookies (file Netscape) parsed', [
+            'path' => $cookiesPath,
+            'count' => count($names),
+            'has_secure_session' => $hasSecureSession,
+          ]);
           $options->cookies($cookiesPath);
         }
       }
@@ -176,9 +208,120 @@ class VideoController extends Controller
         }
       }
 
-      // Fallback if no sources found from main object (sometimes happens with playlists or specific formats)
       if (empty($sources)) {
-        throw new \Exception('No streaming data found via yt-dlp');
+        $jsRuntime = env('YTDL_JS_RUNTIMES');
+        if ($jsRuntime) {
+          $cookieFile = $tempCookiesFile && file_exists($tempCookiesFile) ? $tempCookiesFile : ($cookiesPath && file_exists($cookiesPath) ? $cookiesPath : null);
+          $extractorArgs = env('YTDL_YOUTUBE_EXTRACTOR_ARGS', (function () {
+            $client = env('YTDL_YOUTUBE_CLIENT', 'android');
+            $po = env('YTDL_PO_TOKEN');
+            return $po ? ("player_client={$client};po_token={$po}") : ("player_client={$client}");
+          })());
+          $headers = [
+            'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language: en-US,en;q=0.9',
+            'Referer: https://www.youtube.com/',
+            'Origin: https://www.youtube.com'
+          ];
+          $args = [
+            'yt-dlp',
+            '--ignore-config',
+            '--ignore-errors',
+            '--dump-json',
+            '--format',
+            'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            '--extractor-args',
+            "youtube:{$extractorArgs}",
+            '--js-runtimes',
+            $jsRuntime,
+          ];
+          foreach ($headers as $h) {
+            $args[] = '--add-header';
+            $args[] = $h;
+          }
+          if ($cookieFile) {
+            $args[] = '--cookies';
+            $args[] = $cookieFile;
+          }
+          if ($proxy) {
+            $args[] = '--proxy';
+            $args[] = $proxy;
+          }
+          $args[] = $link;
+          $proc = new Process($args);
+          $proc->setTimeout(60);
+          $proc->run();
+          if ($proc->isSuccessful()) {
+            $lines = preg_split('/\r\n|\r|\n/', $proc->getOutput());
+            foreach ($lines as $line) {
+              $line = trim($line);
+              if ($line === '') continue;
+              $data = json_decode($line, true);
+              if (!is_array($data)) continue;
+              $fmts = $data['formats'] ?? [];
+              foreach ($fmts as $fmt) {
+                $url = $fmt['url'] ?? null;
+                if (!$url) continue;
+                $ext = $fmt['ext'] ?? null;
+                $vcodec = $fmt['vcodec'] ?? null;
+                $acodec = $fmt['acodec'] ?? null;
+                $height = $fmt['height'] ?? null;
+                if ($ext === 'mp4' && $vcodec && $vcodec !== 'none' && $acodec && $acodec !== 'none') {
+                  $label = $height ? ($height . 'p') : ($fmt['format_note'] ?? 'Auto');
+                  $sources[] = [
+                    'file' => $url,
+                    'type' => 'video/mp4',
+                    'label' => $label,
+                    'default' => $label === '720p' || $label === 'Auto',
+                  ];
+                }
+              }
+            }
+          } else {
+            Log::error('yt-dlp raw failed', ['stderr' => $proc->getErrorOutput()]);
+          }
+        }
+        if (empty($sources)) {
+          throw new \Exception('No streaming data found via yt-dlp');
+        }
+      } {
+        $bestIndex = null;
+        $bestRes = 0;
+        foreach ($sources as $i => $source) {
+          $label = isset($source['label']) ? $source['label'] : '';
+          $type = isset($source['type']) ? $source['type'] : '';
+          $isMp4 = stripos($type, 'mp4') !== false;
+          if (!$isMp4) {
+            continue;
+          }
+          $res = 0;
+          if (preg_match('/(\d+)\s*p/i', (string)$label, $m)) {
+            $res = (int)$m[1];
+          } elseif (is_string($label) && strtolower($label) === 'auto') {
+            $res = 360;
+          }
+          if ($res > $bestRes) {
+            $bestRes = $res;
+            $bestIndex = $i;
+          }
+        }
+        if ($bestIndex === null) {
+          foreach ($sources as $i => $source) {
+            if ((isset($source['type']) ? $source['type'] : '') === 'application/x-mpegURL') {
+              $bestIndex = $i;
+              break;
+            }
+          }
+        }
+        if ($bestIndex === null && !empty($sources)) {
+          $bestIndex = 0;
+        }
+        foreach ($sources as &$s) {
+          $s['default'] = false;
+        }
+        if ($bestIndex !== null) {
+          $sources[$bestIndex]['default'] = true;
+        }
       }
 
       // Proxy the YouTube URLs to avoid 403 Forbidden / IP blocking
