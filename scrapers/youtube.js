@@ -26,15 +26,29 @@ if (!url) {
 
     const getWithYtdl = async (inputUrl) => {
       let cookiesEnv = null;
+      let cookieSource = 'none';
       try {
         if (process.env.YTDL_COOKIES_JSON) {
           cookiesEnv = JSON.parse(process.env.YTDL_COOKIES_JSON);
+          cookieSource = 'env';
         }
         if (!cookiesEnv && process.env.YTDL_COOKIES_PATH) {
           const raw = fs.readFileSync(process.env.YTDL_COOKIES_PATH, 'utf8');
           cookiesEnv = JSON.parse(raw);
+          cookieSource = 'env_path';
         }
-      } catch (_) {}
+        if (!cookiesEnv) {
+          const localCookiesPath = path.join(__dirname, 'youtube-cookies.json');
+          if (fs.existsSync(localCookiesPath)) {
+            const raw = fs.readFileSync(localCookiesPath, 'utf8');
+            cookiesEnv = JSON.parse(raw);
+            cookieSource = 'local_file';
+          }
+        }
+      } catch (err) {
+        console.error(JSON.stringify({ debug: 'Cookie load error', message: err.message }));
+      }
+      
       const agent = ytdl.createAgent(
         cookiesEnv && Array.isArray(cookiesEnv)
           ? cookiesEnv
