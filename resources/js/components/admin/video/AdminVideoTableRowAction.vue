@@ -16,6 +16,7 @@ const emits = defineEmits<{
   (e: 'edit', video: Video): void;
   (e: 'delete', video: Video): void;
   (e: 'copy', video: Video): void;
+  (e: 'iframe', video: Video): void;
 }>();
 const props = defineProps<{
   row: Row<Video>;
@@ -38,7 +39,12 @@ const video = computed(() => props.row.original);
     <DropdownMenuContent align="center" class="w-auto">
       <DropdownMenuItem @click="emits('view', video)"> View </DropdownMenuItem>
       <DropdownMenuItem @click="emits('edit', video)"> Edit </DropdownMenuItem>
-      <DropdownMenuItem @click="emits('copy', video)"> Copy </DropdownMenuItem>
+      <DropdownMenuItem @click="emits('copy', video)">
+        Copy Url</DropdownMenuItem
+      >
+      <DropdownMenuItem @click="emits('iframe', video)">
+        Get Iframe
+      </DropdownMenuItem>
       <DropdownMenuItem variant="destructive" @click="emits('delete', video)">
         Delete
       </DropdownMenuItem>

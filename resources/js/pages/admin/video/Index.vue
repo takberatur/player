@@ -263,6 +263,19 @@ function handleCopy(video?: Video) {
     );
   }
 }
+function handleIframe(video?: Video) {
+  try {
+    if (!video) throw new Error('Video not found');
+    navigator.clipboard.writeText(
+      `<iframe src="${window.location.origin}/play/${video.id}" frameborder="0" allowfullscreen width="100%" height="100%" frameborder="0"></iframe>`,
+    );
+    toast.success('Iframe copied to clipboard');
+  } catch (error) {
+    toast.error(
+      error instanceof Error ? error.message : 'Failed to copy iframe',
+    );
+  }
+}
 
 const breadcrumbs: BreadcrumbItem[] = [
   {
@@ -325,6 +338,7 @@ const breadcrumbs: BreadcrumbItem[] = [
             @on-view="handleView"
             @on-edit="(video) => router.get(`/admin/video/${video.id}/edit`)"
             @on-copy="handleCopy"
+            @on-iframe="handleIframe"
             @on-delete="
               (video) => {
                 openDialogDelete = true;

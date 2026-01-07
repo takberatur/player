@@ -6,12 +6,20 @@ import {
   ClientDocIntroductionSection,
   ClientDocNginxReverseProxySection,
   ClientDocRequirementSection,
+  ClientDocTroubleshootingSection,
   ClientDocumentationHeader,
   ClientDocumentationSidebar,
 } from '@/components/client/documentation';
 import { usePage } from '@inertiajs/vue3';
 import { useHead, useSeoMeta } from '@unhead/vue';
-import { Book, CircleAlert, FileClock, Layers, Rocket } from 'lucide-vue-next';
+import {
+  Book,
+  Bug,
+  CircleAlert,
+  FileClock,
+  Layers,
+  Rocket,
+} from 'lucide-vue-next';
 import { computed, ref, watchEffect } from 'vue';
 
 const page = usePage<SharedData>();
@@ -135,6 +143,11 @@ const menuItems = [
     ],
   },
   {
+    id: 'troubleshooting',
+    title: 'Troubleshooting',
+    icon: Bug,
+  },
+  {
     id: 'change-log',
     title: 'Change Log',
     icon: FileClock,
@@ -188,6 +201,9 @@ const selectMenuItem = (itemId: string) => {
           />
           <ClientDocNginxReverseProxySection
             v-else-if="activeSection === 'installation-nginx-proxy'"
+          />
+          <ClientDocTroubleshootingSection
+            v-else-if="activeSection === 'troubleshooting'"
           />
           <ClientDocChangeLogSection
             v-else-if="activeSection === 'change-log'"

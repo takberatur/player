@@ -95,7 +95,7 @@ cd player</code></pre>
       </li>
     </ul>
     <img
-      src="/images/docs/docker-install-script-output.png"
+      src="/images/docs/ubuntu-native-compose-up-output.png"
       alt="Native Install Script Output"
       class="rounded-lg border shadow-sm"
     />

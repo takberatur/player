@@ -43,6 +43,7 @@ const emits = defineEmits<{
   (e: 'onView', video: Video): void;
   (e: 'onEdit', video: Video): void;
   (e: 'onCopy', video: Video): void;
+  (e: 'onIframe', video: Video): void;
   (e: 'onDelete', video: Video): void;
   (e: 'update:selectedData', value: Video[]): void;
   (e: 'openBulkDeleteDialog'): void;
@@ -164,6 +165,7 @@ const columns: ColumnDef<Video>[] = [
         onView: (video: Video) => emits('onView', video),
         onEdit: (video: Video) => emits('onEdit', video),
         onCopy: (video: Video) => emits('onCopy', video),
+        onIframe: (video: Video) => emits('onIframe', video),
         onDelete: (video: Video) => emits('onDelete', video),
       }),
   },

@@ -8,3 +8,4 @@ export { default as ClientDocInstallNginxManualSection } from './ClientDocInstal
 export { default as ClientDocInstallDockerSection } from './ClientDocInstallDockerSection.vue'
 export { default as ClientDocNginxReverseProxySection } from './ClientDocNginxReverseProxySection.vue'
 export { default as ClientDocChangeLogSection } from './ClientDocChangeLogSection.vue'
+export { default as ClientDocTroubleshootingSection } from './ClientDocTroubleshootingSection.vue'
