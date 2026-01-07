@@ -30,3 +30,4 @@ package-lock.json
 /.zed
 # auto-imports.d.ts
 # components.d.ts
+deployment/docker/volumes/config/*.txt

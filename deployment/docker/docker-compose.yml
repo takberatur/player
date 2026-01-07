@@ -20,9 +20,26 @@ services:
             DB_DATABASE: "${DB_DATABASE:-forge_player}"
             DB_USERNAME: "${DB_USERNAME:-forge}"
             DB_PASSWORD: "${DB_PASSWORD:-password}"
+            # yt-dlp configuration
+            YTDL_CACHE_DIR: "${YTDL_CACHE_DIR:-/var/www/html/storage/yt-dlp-cache}"
+            # Use one of the following:
+            # YTDL_COOKIES_PATH: "${YTDL_COOKIES_PATH:-/var/www/html/config/youtube-cookies.txt}"
+            # YTDL_COOKIES_JSON: "${YTDL_COOKIES_JSON:-}"
+            # Client / PO Token
+            YTDL_YOUTUBE_CLIENT: "${YTDL_YOUTUBE_CLIENT:-android}"
+            YTDL_PO_TOKEN: "${YTDL_PO_TOKEN:-}"
+            # Or raw extractor args (overrides the above)
+            YTDL_YOUTUBE_EXTRACTOR_ARGS: "${YTDL_YOUTUBE_EXTRACTOR_ARGS:-}"
+            # Networking and rate-limit
+            YTDL_PROXY: "${YTDL_PROXY:-}"
+            YTDL_SOURCE_ADDRESS: "${YTDL_SOURCE_ADDRESS:-}"
+            YTDL_SLEEP_INTERVAL: "${YTDL_SLEEP_INTERVAL:-5}"
         volumes:
             - ../../:/var/www/html
             - /var/www/html/node_modules
+            # Optional mounts for cookies and cache
+            - ./volumes/config:/var/www/html/config
+            - ./volumes/yt-dlp-cache:/var/www/html/storage/yt-dlp-cache
         networks:
             - forge-network
 

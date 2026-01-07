@@ -38,23 +38,104 @@ class VideoController extends Controller
       // If needed: $yt->setBinPath('/usr/bin/yt-dlp');
 
       $options = Options::create()
+        ->downloadPath(sys_get_temp_dir())
         ->skipDownload(true)
+        ->userAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+        ->extractorArgs('youtube', (function () {
+          $raw = env('YTDL_YOUTUBE_EXTRACTOR_ARGS');
+          if ($raw) return $raw;
+          $client = env('YTDL_YOUTUBE_CLIENT', 'android');
+          $po = env('YTDL_PO_TOKEN');
+          return $po ? ("player_client={$client};po_token={$po}") : ("player_client={$client}");
+        })())
+        ->header('Accept-Language', 'en-US,en;q=0.9')
+        ->header('Referer', 'https://www.youtube.com/')
+        ->header('Origin', 'https://www.youtube.com')
         ->url($link)
         ->format('bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best');
 
+      $cacheDir = env('YTDL_CACHE_DIR');
+      if ($cacheDir) {
+        $options = $options->cacheDir($cacheDir);
+      }
+
+      $proxy = env('YTDL_PROXY');
+      if ($proxy) {
+        $options = $options->proxy($proxy);
+      }
+      $sourceAddress = env('YTDL_SOURCE_ADDRESS');
+      if ($sourceAddress) {
+        $options = $options->sourceAddress($sourceAddress);
+      }
+      $sleepInterval = env('YTDL_SLEEP_INTERVAL');
+      if ($sleepInterval) {
+        $options = $options->sleepInterval((int)$sleepInterval);
+      }
+
       // Use cookies if available
       $cookiesPath = env('YTDL_COOKIES_PATH');
-      if ($cookiesPath && file_exists($cookiesPath)) {
-        $options->cookies($cookiesPath);
-      } else {
-        // Check for local cookies file in scrapers directory as fallback
+      if (!$cookiesPath || !file_exists($cookiesPath)) {
         $localCookies = base_path('scrapers/youtube-cookies.json');
         if (file_exists($localCookies)) {
-          $options->cookies($localCookies);
+          $cookiesPath = $localCookies;
+        }
+      }
+
+      $tempCookiesFile = null;
+      $cookiesJsonEnv = env('YTDL_COOKIES_JSON');
+      if ($cookiesJsonEnv) {
+        $json = json_decode($cookiesJsonEnv, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($json)) {
+          $netscapeContent = "# Netscape HTTP Cookie File\n";
+          foreach ($json as $cookie) {
+            $domain = $cookie['domain'] ?? '';
+            $flag = strpos($domain, '.') === 0 ? 'TRUE' : 'FALSE';
+            $path = $cookie['path'] ?? '/';
+            $secure = ($cookie['secure'] ?? false) ? 'TRUE' : 'FALSE';
+            $expiration = isset($cookie['expirationDate']) ? (int)$cookie['expirationDate'] : (time() + 31536000);
+            $name = $cookie['name'] ?? '';
+            $value = $cookie['value'] ?? '';
+            $netscapeContent .= "{$domain}\t{$flag}\t{$path}\t{$secure}\t{$expiration}\t{$name}\t{$value}\n";
+          }
+          $tempCookiesFile = tempnam(sys_get_temp_dir(), 'ytdl_cookies_');
+          file_put_contents($tempCookiesFile, $netscapeContent);
+          $options->cookies($tempCookiesFile);
+        }
+      } elseif ($cookiesPath && file_exists($cookiesPath)) {
+        // Check if file is JSON and convert to Netscape format if needed
+        $content = file_get_contents($cookiesPath);
+        $json = json_decode($content, true);
+
+        if (json_last_error() === JSON_ERROR_NONE && is_array($json)) {
+          // Convert JSON to Netscape format
+          $netscapeContent = "# Netscape HTTP Cookie File\n";
+          foreach ($json as $cookie) {
+            $domain = $cookie['domain'] ?? '';
+            $flag = strpos($domain, '.') === 0 ? 'TRUE' : 'FALSE';
+            $path = $cookie['path'] ?? '/';
+            $secure = ($cookie['secure'] ?? false) ? 'TRUE' : 'FALSE';
+            $expiration = isset($cookie['expirationDate']) ? (int)$cookie['expirationDate'] : (time() + 31536000);
+            $name = $cookie['name'] ?? '';
+            $value = $cookie['value'] ?? '';
+
+            $netscapeContent .= "{$domain}\t{$flag}\t{$path}\t{$secure}\t{$expiration}\t{$name}\t{$value}\n";
+          }
+
+          $tempCookiesFile = tempnam(sys_get_temp_dir(), 'ytdl_cookies_');
+          file_put_contents($tempCookiesFile, $netscapeContent);
+          $options->cookies($tempCookiesFile);
+        } else {
+          // Assume it's already Netscape format
+          $options->cookies($cookiesPath);
         }
       }
 
       $collection = $yt->download($options);
+
+      // Cleanup temp cookies
+      if ($tempCookiesFile && file_exists($tempCookiesFile)) {
+        @unlink($tempCookiesFile);
+      }
 
       $sources = [];
       foreach ($collection->getVideos() as $video) {
@@ -63,7 +144,6 @@ class VideoController extends Controller
           continue;
         }
 
-        // Main video file
         if ($video->getUrl()) {
           $label = $video->getHeight() ? $video->getHeight() . 'p' : 'Auto';
           $sources[] = [
@@ -74,9 +154,26 @@ class VideoController extends Controller
           ];
         }
 
-        // Check formats if main URL is not enough or we want adaptive
-        // Note: youtube-dl-php might not expose all formats easily in the main object
-        // but usually getUrl() returns the requested format.
+        $fmts = $video->get('formats', []);
+        foreach ($fmts as $fmt) {
+          $url = $fmt->getUrl();
+          if (!$url) {
+            continue;
+          }
+          $ext = $fmt->getExt();
+          $vcodec = $fmt->getVcodec();
+          $acodec = $fmt->getAcodec();
+          if ($ext === 'mp4' && $vcodec && $vcodec !== 'none' && $acodec && $acodec !== 'none') {
+            $height = $fmt->getHeight();
+            $label = $height ? ($height . 'p') : ($fmt->getFormatNote() ?: 'Auto');
+            $sources[] = [
+              'file' => $url,
+              'type' => 'video/mp4',
+              'label' => $label,
+              'default' => $label === '720p' || $label === 'Auto',
+            ];
+          }
+        }
       }
 
       // Fallback if no sources found from main object (sometimes happens with playlists or specific formats)
