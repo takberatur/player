@@ -164,10 +164,10 @@ class VideoController extends Controller
 
       $collection = $yt->download($options);
 
-      // Cleanup temp cookies
-      if ($tempCookiesFile && file_exists($tempCookiesFile)) {
-        @unlink($tempCookiesFile);
-      }
+      // Cleanup temp cookies moved to end to allow fallback usage
+      // if ($tempCookiesFile && file_exists($tempCookiesFile)) {
+      //   @unlink($tempCookiesFile);
+      // }
 
       $sources = [];
       foreach ($collection->getVideos() as $video) {
@@ -331,8 +331,18 @@ class VideoController extends Controller
         }
       }
 
+      // Cleanup temp cookies
+      if ($tempCookiesFile && file_exists($tempCookiesFile)) {
+        @unlink($tempCookiesFile);
+      }
+
       return response()->json($sources);
     } catch (\Exception $e) {
+      // Cleanup temp cookies
+      if (isset($tempCookiesFile) && $tempCookiesFile && file_exists($tempCookiesFile)) {
+        @unlink($tempCookiesFile);
+      }
+
       Log::error('YouTube Scraper Failed (yt-dlp)', [
         'link' => $link,
         'error' => $e->getMessage()
