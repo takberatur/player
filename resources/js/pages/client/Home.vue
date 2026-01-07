@@ -48,7 +48,7 @@ useHead({
   link: [
     {
       rel: 'canonical',
-      href: import.meta.env.VITE_APP_URL || window.location.href,
+      href: import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.href : ''),
     },
     {
       rel: 'icon',

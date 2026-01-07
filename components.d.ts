@@ -11,8 +11,6 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    UBadge: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Badge.vue')['default']
-    UChangelogVersion: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/ChangelogVersion.vue')['default']
     UChangelogVersions: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/ChangelogVersions.vue')['default']
     UFileUpload: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/FileUpload.vue')['default']
   }

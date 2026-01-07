@@ -107,10 +107,11 @@ cd player</code></pre>
             domain.</strong
           >
         </p>
-        <pre><code class="language-ini">#
+        <pre><code class="language-ini"># Set your domain or server IP
 APP_URL=http://yourdomain.com
 ASSET_URL=http://yourdomain.com
-VITE_APP_URL=http://yourdomain.com</code></pre>
+VITE_APP_URL=http://yourdomain.com
+SESSION_DOMAIN=.yourdomain.com</code></pre>
         <p>
           Update your database host to match the service name in
           <code>docker-compose.yml</code>.

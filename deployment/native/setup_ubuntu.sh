@@ -160,6 +160,7 @@ echo "Setting SESSION_DOMAIN to $SESSION_DOMAIN"
 
 sed -i "s|^APP_URL=.*|APP_URL=https://$DOMAIN_NAME|" .env
 sed -i "s|^ASSET_URL=.*|ASSET_URL=https://$DOMAIN_NAME|" .env
+sed -i "s|^VITE_APP_URL=.*|VITE_APP_URL=https://$DOMAIN_NAME|" .env
 sed -i "s|^SESSION_DOMAIN=.*|SESSION_DOMAIN=$SESSION_DOMAIN|" .env
 
 echo "--- INSTALL MYSQL ---"
