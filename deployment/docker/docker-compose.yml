@@ -3,10 +3,12 @@ services:
     build:
       context: ../../
       dockerfile: deployment/docker/Dockerfile
-    image: ${APP_SERVICE_ID:-forge-player}-app
-    container_name: ${APP_SERVICE_ID:-forge-player}-app
+    image: ${APP_SERVICE_ID:-forge_player_01}
+    container_name: ${APP_SERVICE_ID:-forge_player_01}
     restart: unless-stopped
     working_dir: /var/www/html
+    ports:
+      - "127.0.0.1:${APP_PORT:-3001}:${APP_PORT:-3001}"
     environment:
       APP_NAME: "${APP_NAME:-ForgePlayer}"
       APP_ENV: "${APP_ENV:-production}"
